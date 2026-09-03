@@ -34,3 +34,5 @@ ifeq ($(CFG_QCOM_ICB_RPM),y)
 # u_data.c defines 21 routes.
 CFG_QCOM_ICB_MAX_CLIENTS = 21
 endif
+
+CFG_QCOM_PAS_PTA ?= y
