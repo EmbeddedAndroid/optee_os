@@ -11,4 +11,6 @@
 
 #define GENI_UART_REG_BASE		UL(0x04a80000)
 
+#define GICR_BASE			UL(0x0f260000)
+
 #endif /* TARGET_CONFIG_H */
