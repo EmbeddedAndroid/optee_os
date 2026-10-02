@@ -38,18 +38,21 @@
 #define TOP_CC_LPI_Q6_AXIM_HS_CLK		0x4000
 #define TOP_CC_AGGNOC_MPU_LS_CLK		0x7000
 
-/* QDSP6SS block, relative to LPASS_BASE. */
+/* QDSP6SS blocks, relative to LPASS_BASE and TURING_BASE. */
 #define LPASS_QDSP6SS_OFFSET			0x00400000
+#define TURING_QDSP6SS_OFFSET			0x00b00000
 #define QDSP6SS_RET_CFG				0x1c
 #define QDSP6SS_RET_CFG_RET_ARES_ENA_BIT	BIT(0)
 
 /* Subsystem restarts, within the AOSS_CC window. */
 #define AOSS_CC_LPASS_RESTART			0x30000
+#define AOSS_CC_COMPUTESS_RESTART		0x40000
 #define AOSS_CC_SS_RESTART_BIT			BIT(0)
 
 /* PDC sync resets, within the RPMH_PDC_GLOBAL window. */
 #define RPMH_PDC_SYNC_RESET			0x1000
 #define PDC_SYNC_RESET_AUDIO_BIT		BIT(2)
+#define PDC_SYNC_RESET_COMPUTE_BIT		BIT(8)
 
 /*
  * QDSP6 bus master halt blocks, within the TCSR mutex window, and the
@@ -57,6 +60,8 @@
  */
 #define TCSR_LPASS_HALT				0x22000
 #define TCSR_LPASS_PWR_ON			0x10
+#define TCSR_TURING_HALT			0x34000
+#define TCSR_TURING_PWR_ON			0xc
 #define TCSR_HALTREQ				0x0
 #define TCSR_HALTACK				0x4
 #define TCSR_MASTER_IDLE			0x8
