@@ -25,6 +25,9 @@
 #define GPU_BASE			UL(0x05900000)
 #define GPU_SIZE			UL(0x00040000)
 
+#define VENUS_BASE			UL(0x05a00000)
+#define VENUS_SIZE			UL(0x000f0000)
+
 /* GIC-500 redistributor (GICD_BASE is common to the family). */
 #define GICR_BASE			UL(0x0f300000)
 
