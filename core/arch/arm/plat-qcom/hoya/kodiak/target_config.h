@@ -39,7 +39,7 @@
 #define IRIS_BASE			UL(0x0aa00000)
 #define IRIS_SIZE			ULL(0x00200000)
 
-/* Global register blocks for the LPASS subsystem restart. */
+/* Global register blocks for the LPASS and Turing subsystem restarts. */
 #define AOSS_CC_BASE			UL(0x0c2a0000)
 #define AOSS_CC_SIZE			UL(0x00041000)
 #define RPMH_PDC_GLOBAL_BASE		UL(0x0b5e0000)
