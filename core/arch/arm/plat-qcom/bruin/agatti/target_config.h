@@ -23,6 +23,9 @@
 #define LPASS_BASE			UL(0x0a000000)
 #define LPASS_SIZE			UL(0x01000000)
 
+#define GPU_BASE			UL(0x05900000)
+#define GPU_SIZE			UL(0x00040000)
+
 #define GICR_BASE			UL(0x0f300000)
 
 #endif /* TARGET_CONFIG_H */
