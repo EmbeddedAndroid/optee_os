@@ -37,6 +37,7 @@
 #define NSPAUX_GDSCR_RETAIN_FF_ENABLE_BIT	BIT(11)
 #define Q6SS_ALT_RESET_CTL_ALT_ARES_BYPASS_BIT	BIT(0)
 #define QDSP6SS_RET_CFG_RET_ARES_ENA_BIT	BIT(0)
+#define QDSP6SS_RET_CFG_NRET_ARES_ENA_BIT	BIT(1)
 
 /*
  * Global blocks involved in the Turing reset (offsets within each window);
@@ -124,6 +125,7 @@
 
 /* Offsets within the QDSP6 PUB block (LPASS_PUB_OFFSET). */
 #define LPASS_QDSP6SS_RST_EVB			0x10
+#define LPASS_QDSP6SS_RET_CFG			0x1c
 #define LPASS_QDSP6SS_BOOT_CORE_START		0x400
 #define LPASS_QDSP6SS_BOOT_CMD			0x404
 #define LPASS_QDSP6SS_BOOT_STATUS		0x408
@@ -145,6 +147,14 @@
 
 /* GCC config-NoC LPASS access branch (offset within the GCC window). */
 #define GCC_CFG_NOC_LPASS_CBCR			0x43024
+
+/* LPASS subsystem restart, PDC sync reset and TCSR master halt. */
+#define AOSS_CC_LPASS_RESTART			0x4f01c
+#define LPASS_RESTART_SS_BIT			BIT(0)
+#define PDC_SYNC_RESET_AUDIO_BIT		BIT(2)
+#define TCSR_LPASS_HALTREQ			0x22000
+#define TCSR_LPASS_HALTACK			0x22004
+#define TCSR_LPASS_BIT				BIT(0)
 
 /*
  * LPASS Q6 Lucid-EVO PLL settings, taken from the reference clock driver
