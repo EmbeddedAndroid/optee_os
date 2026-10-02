@@ -11,6 +11,7 @@
 #include "gpu.h"
 #include "lpass.h"
 #include "pas_subsys.h"
+#include "venus.h"
 
 static struct qcom_pas_subsys subsystems[] = {
 	{
@@ -32,6 +33,16 @@ static struct qcom_pas_subsys subsystems[] = {
 			.map_type = MEM_AREA_IO_NSEC,
 		},
 		.ops = &gpu_ops,
+		.reset_seq = QCOM_PAS_RESET_NONE,
+	},
+	{
+		.data = {
+			.pas_id = PAS_ID_IRIS,
+			.base.pa = VENUS_BASE,
+			.size = VENUS_SIZE,
+			.map_type = MEM_AREA_IO_NSEC,
+		},
+		.ops = &venus_ops,
 		.reset_seq = QCOM_PAS_RESET_NONE,
 	},
 };

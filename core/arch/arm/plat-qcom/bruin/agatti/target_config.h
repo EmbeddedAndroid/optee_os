@@ -28,6 +28,9 @@
 #define GPU_BASE			UL(0x05900000)
 #define GPU_SIZE			UL(0x00040000)
 
+#define VENUS_BASE			UL(0x05a00000)
+#define VENUS_SIZE			UL(0x000f0000)
+
 #define QCOM_RNG_REG_BASE		UL(0x04453000)
 
 #endif /* TARGET_CONFIG_H */
