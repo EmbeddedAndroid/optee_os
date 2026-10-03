@@ -37,6 +37,10 @@ static const struct fw_rsc_devmem lpass_mem_res[] = {
 		.da = 0x00a80000, .pa = 0x00a80000, .len = 0x00004000, },
 	{ .name = "pinctrl", .flags = IOMMU_READ | IOMMU_WRITE,
 		.da = 0x0f100000, .pa = 0x0f100000, .len = 0x00300000, },
+	{ .name = "usb_mode_mgr", .flags = IOMMU_READ,
+		.da = 0x088e2000, .pa = 0x088e2000, .len = 0x00001000, },
+	{ .name = "usb2_phy", .flags = IOMMU_READ | IOMMU_WRITE,
+		.da = 0x088e3000, .pa = 0x088e3000, .len = 0x00001000, },
 };
 
 DEFINE_RESOURCE_TABLE(LPASS, ARRAY_SIZE(lpass_mem_res));
