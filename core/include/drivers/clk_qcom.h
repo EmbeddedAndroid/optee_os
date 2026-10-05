@@ -8,11 +8,16 @@
 #define _CLK_QCOM_H_
 
 #include <drivers/clk.h>
+#include <mm/core_memprot.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <tee_api_types.h>
 #include <types_ext.h>
 #include <util.h>
+
+/* Map a fixed MMIO window and return its core VA (0 if not mapped). */
+#define QCOM_IO_MAP(phys, size) \
+	io_pa_or_va(&(struct io_pa_va){ .pa = (phys) }, (size))
 
 #define REG_POLL_TIMEOUT(_addr, _timeout_us, _delay_us, _retp, _match)	\
 	do {								\
