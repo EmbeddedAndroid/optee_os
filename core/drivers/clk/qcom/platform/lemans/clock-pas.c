@@ -29,10 +29,8 @@ register_phys_mem(MEM_AREA_IO_NSEC, LPASS_AG_NOC_SBM_BASE,
 
 static TEE_Result cdsp_enable(paddr_t turing_base)
 {
-	struct io_pa_va turing_cc_io = {
-		.pa = turing_base + TURINGNSP_CC_OFFSET
-	};
-	vaddr_t cc_base = io_pa_or_va(&turing_cc_io, 0x50000);
+	vaddr_t cc_base = QCOM_IO_MAP(turing_base + TURINGNSP_CC_OFFSET,
+				     0x50000);
 	uint64_t timeout = timeout_init_us(10000);
 	TEE_Result res = TEE_SUCCESS;
 
@@ -87,10 +85,8 @@ static const struct qcom_lucidevo_pll_config q6_pll_cfg = {
  */
 static TEE_Result cdsp_enable_processor(paddr_t turing_base)
 {
-	struct io_pa_va proc_io = {
-		.pa = turing_base + TURINGNSP_BOOT_OFFSET
-	};
-	vaddr_t boot_base = io_pa_or_va(&proc_io, TURINGNSP_PROC_WINDOW_SIZE);
+	vaddr_t boot_base = QCOM_IO_MAP(turing_base + TURINGNSP_BOOT_OFFSET,
+					TURINGNSP_PROC_WINDOW_SIZE);
 	vaddr_t pll_base = boot_base - TURINGNSP_BOOT_OFFSET +
 			   TURINGNSP_Q6_PLL_OFFSET;
 	vaddr_t core_cc = boot_base - TURINGNSP_BOOT_OFFSET +
@@ -131,10 +127,8 @@ static const struct qcom_lucidevo_pll_config lpass_q6_pll_cfg = {
  */
 static TEE_Result lpass_setup(void)
 {
-	struct io_pa_va gcc_io = { .pa = GCC_BASE };
-	vaddr_t gcc_base = io_pa_or_va(&gcc_io, GCC_SIZE);
-	struct io_pa_va lpass_io = { .pa = LPASS_BASE };
-	vaddr_t lpass_base = io_pa_or_va(&lpass_io, LPASS_SIZE);
+	vaddr_t lpass_base = QCOM_IO_MAP(LPASS_BASE, LPASS_SIZE);
+	vaddr_t gcc_base = QCOM_IO_MAP(GCC_BASE, GCC_SIZE);
 	vaddr_t aon_cc = lpass_base + LPASS_AON_CC_OFFSET;
 	vaddr_t top_cc = lpass_base + LPASS_TOP_CC_OFFSET;
 	vaddr_t core_cc = lpass_base + LPASS_CORE_CC_OFFSET;
@@ -197,10 +191,8 @@ static const struct qcom_lucidevo_pll_config gpdsp_q6_pll_cfg = {
 static TEE_Result gpdsp_setup(paddr_t gdsp_base, uint32_t gcc_cfg_ahb_cbcr,
 			      uint32_t gcc_aggre_axi_cbcr)
 {
-	struct io_pa_va gcc_io = { .pa = GCC_BASE };
-	vaddr_t gcc_base = io_pa_or_va(&gcc_io, GCC_SIZE);
-	struct io_pa_va gdsp_io = { .pa = gdsp_base };
-	vaddr_t base = io_pa_or_va(&gdsp_io, TURING_GDSP_0_SIZE);
+	vaddr_t base = QCOM_IO_MAP(gdsp_base, TURING_GDSP_0_SIZE);
+	vaddr_t gcc_base = QCOM_IO_MAP(GCC_BASE, GCC_SIZE);
 	vaddr_t gdsp_cc = base + TURINGGDSP_GDSP_CC_OFFSET;
 	vaddr_t core_cc = base + TURINGGDSP_CORE_CC_OFFSET;
 	vaddr_t pll_base = base + TURINGGDSP_PLL_OFFSET;
@@ -322,25 +314,19 @@ static const struct cdsp_reset_regs cdsp1_reset_regs = {
  */
 static TEE_Result cdsp_reset_processor(const struct cdsp_reset_regs *r)
 {
-	struct io_pa_va turing_cc_io = { .pa = r->turing_base +
-						TURINGNSP_CC_OFFSET };
-	vaddr_t cc_base = io_pa_or_va(&turing_cc_io,
+	vaddr_t pub_base = QCOM_IO_MAP(r->turing_base + TURINGNSP_BOOT_OFFSET,
+				      TURINGNSP_PROC_WINDOW_SIZE);
+	vaddr_t cc_base = QCOM_IO_MAP(r->turing_base + TURINGNSP_CC_OFFSET,
 				     TURINGNSP_PROC_WINDOW_SIZE);
-	struct io_pa_va pub_io = { .pa = r->turing_base +
-					 TURINGNSP_BOOT_OFFSET };
-	vaddr_t pub_base = io_pa_or_va(&pub_io, TURINGNSP_PROC_WINDOW_SIZE);
-	struct io_pa_va gcc_io = { .pa = GCC_BASE };
-	vaddr_t gcc_base = io_pa_or_va(&gcc_io, GCC_SIZE);
-	struct io_pa_va aoss_io = { .pa = AOSS_CC_BASE };
-	vaddr_t aoss_cc = io_pa_or_va(&aoss_io, AOSS_CC_SIZE);
-	struct io_pa_va pdc_g_io = { .pa = RPMH_PDC_GLOBAL_BASE };
-	vaddr_t pdc_global = io_pa_or_va(&pdc_g_io, RPMH_PDC_GLOBAL_SIZE);
-	struct io_pa_va pdc_s_io = { .pa = r->pdc_status_base };
-	vaddr_t pdc_status = io_pa_or_va(&pdc_s_io, r->pdc_status_size);
-	struct io_pa_va tcsr_io = { .pa = TCSR_MUTEX_BASE };
-	vaddr_t tcsr = io_pa_or_va(&tcsr_io, TCSR_MUTEX_SIZE);
-	uint64_t timeout = 0;
+	vaddr_t pdc_global = QCOM_IO_MAP(RPMH_PDC_GLOBAL_BASE,
+					RPMH_PDC_GLOBAL_SIZE);
+	vaddr_t pdc_status = QCOM_IO_MAP(r->pdc_status_base,
+					r->pdc_status_size);
+	vaddr_t tcsr = QCOM_IO_MAP(TCSR_MUTEX_BASE, TCSR_MUTEX_SIZE);
+	vaddr_t aoss_cc = QCOM_IO_MAP(AOSS_CC_BASE, AOSS_CC_SIZE);
+	vaddr_t gcc_base = QCOM_IO_MAP(GCC_BASE, GCC_SIZE);
 	TEE_Result res = TEE_SUCCESS;
+	uint64_t timeout = 0;
 
 	/* Bail if the PDC sequencer is mid-transition. */
 	if (io_read32(pdc_status + RPMH_PDC_MODE_STATUS_DRV0) &
@@ -462,19 +448,15 @@ static const struct gpdsp_reset_regs gpdsp1_reset_regs = {
  */
 static TEE_Result gpdsp_reset_processor(const struct gpdsp_reset_regs *r)
 {
-	struct io_pa_va gdsp_io = { .pa = r->gdsp_base };
-	vaddr_t base = io_pa_or_va(&gdsp_io, TURING_GDSP_0_SIZE);
+	vaddr_t pdc_global = QCOM_IO_MAP(RPMH_PDC_GLOBAL_BASE,
+					RPMH_PDC_GLOBAL_SIZE);
+	vaddr_t pdc_status = QCOM_IO_MAP(r->pdc_status_base,
+					r->pdc_status_size);
+	vaddr_t base = QCOM_IO_MAP(r->gdsp_base, TURING_GDSP_0_SIZE);
+	vaddr_t tcsr = QCOM_IO_MAP(TCSR_MUTEX_BASE, TCSR_MUTEX_SIZE);
+	vaddr_t aoss_cc = QCOM_IO_MAP(AOSS_CC_BASE, AOSS_CC_SIZE);
+	vaddr_t gcc_base = QCOM_IO_MAP(GCC_BASE, GCC_SIZE);
 	vaddr_t pub = base + TURINGGDSP_PUB_OFFSET;
-	struct io_pa_va gcc_io = { .pa = GCC_BASE };
-	vaddr_t gcc_base = io_pa_or_va(&gcc_io, GCC_SIZE);
-	struct io_pa_va aoss_io = { .pa = AOSS_CC_BASE };
-	vaddr_t aoss_cc = io_pa_or_va(&aoss_io, AOSS_CC_SIZE);
-	struct io_pa_va pdc_g_io = { .pa = RPMH_PDC_GLOBAL_BASE };
-	vaddr_t pdc_global = io_pa_or_va(&pdc_g_io, RPMH_PDC_GLOBAL_SIZE);
-	struct io_pa_va pdc_s_io = { .pa = r->pdc_status_base };
-	vaddr_t pdc_status = io_pa_or_va(&pdc_s_io, r->pdc_status_size);
-	struct io_pa_va tcsr_io = { .pa = TCSR_MUTEX_BASE };
-	vaddr_t tcsr = io_pa_or_va(&tcsr_io, TCSR_MUTEX_SIZE);
 	uint64_t timeout = 0;
 
 	if (!base || !gcc_base || !aoss_cc || !pdc_global || !pdc_status ||
@@ -629,8 +611,7 @@ TEE_Result qcom_clock_pas_reset(enum qcom_clk_group group)
 
 TEE_Result qcom_clock_enable_pas(enum qcom_clk_group group)
 {
-	struct io_pa_va base = { .pa = GCC_BASE };
-	vaddr_t gcc_base = io_pa_or_va(&base, GCC_SIZE);
+	vaddr_t gcc_base = QCOM_IO_MAP(GCC_BASE, GCC_SIZE);
 	TEE_Result res = 0;
 
 	switch (group) {
