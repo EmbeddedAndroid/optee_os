@@ -57,6 +57,9 @@
 #define LPASS_BASE			UL(0x02c00000)
 #define LPASS_SIZE			ULL(0x01080000)
 
+#define LPASS_AG_NOC_SBM_BASE		UL(0x03c4a000)
+#define LPASS_AG_NOC_SBM_SIZE		UL(0x00001000)
+
 /*
  * IRIS video-codec subsystem. The window covers the VCODEC_IRIS_WRAPPER_TOP
  * (IRIS+0xb0000) and WRAPPER_TZ (IRIS+0xc0000) blocks the bring-up path

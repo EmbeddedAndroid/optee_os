@@ -24,6 +24,8 @@ register_phys_mem(MEM_AREA_IO_NSEC, RPMH_PDC_GPDSP0_BASE, RPMH_PDC_GPDSP0_SIZE);
 register_phys_mem(MEM_AREA_IO_NSEC, RPMH_PDC_GPDSP1_BASE, RPMH_PDC_GPDSP1_SIZE);
 register_phys_mem(MEM_AREA_IO_NSEC, RPMH_PDC_AUDIO_BASE, RPMH_PDC_AUDIO_SIZE);
 register_phys_mem(MEM_AREA_IO_NSEC, TCSR_MUTEX_BASE, TCSR_MUTEX_SIZE);
+register_phys_mem(MEM_AREA_IO_NSEC, LPASS_AG_NOC_SBM_BASE,
+		  LPASS_AG_NOC_SBM_SIZE);
 
 static TEE_Result cdsp_enable(paddr_t turing_base)
 {
@@ -527,6 +529,7 @@ static TEE_Result lpass_reset_processor(void)
 	vaddr_t pdc_status = QCOM_IO_MAP(RPMH_PDC_AUDIO_BASE,
 					RPMH_PDC_AUDIO_SIZE);
 	vaddr_t tcsr = QCOM_IO_MAP(TCSR_MUTEX_BASE, TCSR_MUTEX_SIZE);
+	vaddr_t sbm = QCOM_IO_MAP(LPASS_AG_NOC_SBM_BASE, LPASS_AG_NOC_SBM_SIZE);
 	vaddr_t aoss_cc = QCOM_IO_MAP(AOSS_CC_BASE, AOSS_CC_SIZE);
 	vaddr_t lpass_base = QCOM_IO_MAP(LPASS_BASE, LPASS_SIZE);
 	vaddr_t gcc_base = QCOM_IO_MAP(GCC_BASE, GCC_SIZE);
@@ -536,7 +539,7 @@ static TEE_Result lpass_reset_processor(void)
 	uint64_t timeout = 0;
 
 	if (!gcc_base || !lpass_base || !aoss_cc || !pdc_global ||
-	    !pdc_status || !tcsr)
+	    !pdc_status || !tcsr || !sbm)
 		return TEE_ERROR_GENERIC;
 
 	/* Bail if the PDC sequencer is mid-transition. */
@@ -580,6 +583,10 @@ static TEE_Result lpass_reset_processor(void)
 
 	io_clrbits32(tcsr + TCSR_LPASS_HALTREQ, TCSR_LPASS_BIT);
 	udelay(100);
+
+	io_write32(sbm + LPASS_AG_NOC_SBM_FLAGOUTSET0_LOW, 0);
+	io_write32(sbm + LPASS_AG_NOC_SBM_FLAGOUTCLR0_LOW,
+		   LPASS_AG_NOC_SBM_PORT1_BIT);
 
 	return TEE_SUCCESS;
 }

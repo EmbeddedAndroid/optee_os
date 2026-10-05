@@ -156,6 +156,11 @@
 #define TCSR_LPASS_HALTACK			0x22004
 #define TCSR_LPASS_BIT				BIT(0)
 
+/* LPASS AG NoC sideband manager, offsets from LPASS_AG_NOC_SBM_BASE. */
+#define LPASS_AG_NOC_SBM_FLAGOUTCLR0_LOW	0x80
+#define LPASS_AG_NOC_SBM_FLAGOUTSET0_LOW	0x88
+#define LPASS_AG_NOC_SBM_PORT1_BIT		BIT(1)
+
 /*
  * LPASS Q6 Lucid-EVO PLL settings, taken from the reference clock driver
  * HALclkPLLSettings.h (HAL_CLK_LPASS_AON_CC_LPASS_QDSP6SS_PLL_*). Identical to
