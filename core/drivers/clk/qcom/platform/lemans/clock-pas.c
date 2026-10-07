@@ -335,6 +335,10 @@ static TEE_Result cdsp_reset_processor(const struct cdsp_reset_regs *r)
 	TEE_Result res = TEE_SUCCESS;
 	uint64_t timeout = 0;
 
+	if (!pub_base || !cc_base || !gcc_base || !aoss_cc || !pdc_global ||
+	    !pdc_status || !tcsr)
+		return TEE_ERROR_GENERIC;
+
 	/* Bail if the PDC sequencer is mid-transition. */
 	if (io_read32(pdc_status + RPMH_PDC_MODE_STATUS_DRV0) &
 	    PDC_MODE_STATUS_SEQ_BUSY_BIT)
