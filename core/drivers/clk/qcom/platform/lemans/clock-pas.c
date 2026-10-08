@@ -15,6 +15,10 @@
 
 #include "clock_group.h"
 
+/* Map a fixed MMIO window and return its core VA (0 if not mapped). */
+#define QCOM_IO_MAP(phys, size) \
+	io_pa_or_va(&(struct io_pa_va){ .pa = (phys) }, (size))
+
 register_phys_mem(MEM_AREA_IO_NSEC, AOSS_CC_BASE, AOSS_CC_SIZE);
 register_phys_mem(MEM_AREA_IO_NSEC, RPMH_PDC_GLOBAL_BASE, RPMH_PDC_GLOBAL_SIZE);
 register_phys_mem(MEM_AREA_IO_NSEC, RPMH_PDC_COMPUTE_BASE,
