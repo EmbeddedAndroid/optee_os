@@ -719,7 +719,7 @@ static TEE_Result lpass_reset_processor(void)
 			return res;
 	}
 
-	/* Reset the retention flops too; lpass_fw_start clears these. */
+	/* Reset the retention flops too; the QDSP6 clears this once it runs. */
 	io_setbits32(pub + LPASS_QDSP6SS_RET_CFG,
 		     QDSP6SS_RET_CFG_RET_ARES_ENA_BIT);
 

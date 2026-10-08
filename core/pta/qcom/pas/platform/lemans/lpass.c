@@ -21,7 +21,6 @@
 
 /* Offsets within the QDSP6 PUB block (LPASS_PUB_OFFSET). */
 #define LPASS_QDSP6SS_RST_EVB		0x10
-#define LPASS_QDSP6SS_RET_CFG		0x1c
 #define LPASS_QDSP6SS_BOOT_CORE_START	0x400
 #define LPASS_QDSP6SS_BOOT_CMD		0x404
 #define LPASS_QDSP6SS_BOOT_STATUS	0x408
@@ -250,8 +249,6 @@ static TEE_Result lpass_fw_start(struct qcom_pas_data *data)
 	 */
 	io_write32(pub + LPASS_QDSP6SS_RST_EVB, data->fw_base >> 4);
 	io_write32(base + LPASS_MCC_OFFSET + LPASS_EFUSE_Q6SS_EVB_SEL, 0);
-	/* Keep the retention flops through later QDSP6 core resets. */
-	io_write32(pub + LPASS_QDSP6SS_RET_CFG, 0);
 	dsb();
 
 	/* De-assert stop-core, then trigger the boot FSM. */
