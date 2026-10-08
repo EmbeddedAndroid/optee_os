@@ -52,13 +52,13 @@
 
 /*
  * LPASS / ADSP (QDSP6 v68/v69) subsystem window, covering every sub-block the
- * PTA and clock driver touch (PUB, PLL, CORE_CC, AON_CC, MCC, TOP_CC).
+ * PTA and clock driver touch (PUB, PLL, CORE_CC, AUDIO_CC, AON_CC, MCC,
+ * CORE_HM_CC, TOP_CC and the AG NoC sideband manager).
  */
 #define LPASS_BASE			UL(0x02c00000)
 #define LPASS_SIZE			ULL(0x01080000)
 
 #define LPASS_AG_NOC_SBM_BASE		UL(0x03c4a000)
-#define LPASS_AG_NOC_SBM_SIZE		UL(0x00001000)
 
 /*
  * IRIS video-codec subsystem. The window covers the VCODEC_IRIS_WRAPPER_TOP

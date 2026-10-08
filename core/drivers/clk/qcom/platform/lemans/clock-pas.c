@@ -24,8 +24,6 @@ register_phys_mem(MEM_AREA_IO_NSEC, RPMH_PDC_GPDSP0_BASE, RPMH_PDC_GPDSP0_SIZE);
 register_phys_mem(MEM_AREA_IO_NSEC, RPMH_PDC_GPDSP1_BASE, RPMH_PDC_GPDSP1_SIZE);
 register_phys_mem(MEM_AREA_IO_NSEC, RPMH_PDC_AUDIO_BASE, RPMH_PDC_AUDIO_SIZE);
 register_phys_mem(MEM_AREA_IO_NSEC, TCSR_MUTEX_BASE, TCSR_MUTEX_SIZE);
-register_phys_mem(MEM_AREA_IO_NSEC, LPASS_AG_NOC_SBM_BASE,
-		  LPASS_AG_NOC_SBM_SIZE);
 
 static TEE_Result cdsp_enable(paddr_t turing_base)
 {
@@ -677,18 +675,18 @@ static TEE_Result lpass_reset_processor(void)
 	vaddr_t pdc_status = QCOM_IO_MAP(RPMH_PDC_AUDIO_BASE,
 					RPMH_PDC_AUDIO_SIZE);
 	vaddr_t tcsr = QCOM_IO_MAP(TCSR_MUTEX_BASE, TCSR_MUTEX_SIZE);
-	vaddr_t sbm = QCOM_IO_MAP(LPASS_AG_NOC_SBM_BASE, LPASS_AG_NOC_SBM_SIZE);
 	vaddr_t aoss_cc = QCOM_IO_MAP(AOSS_CC_BASE, AOSS_CC_SIZE);
 	vaddr_t lpass_base = QCOM_IO_MAP(LPASS_BASE, LPASS_SIZE);
 	vaddr_t gcc_base = QCOM_IO_MAP(GCC_BASE, GCC_SIZE);
 	vaddr_t aon_cc = lpass_base + LPASS_AON_CC_OFFSET;
 	vaddr_t pub = lpass_base + LPASS_PUB_OFFSET;
+	vaddr_t sbm = lpass_base + LPASS_AG_NOC_SBM_OFFSET;
 	TEE_Result res = TEE_SUCCESS;
 	uint64_t timeout = 0;
 	bool island = false;
 
 	if (!gcc_base || !lpass_base || !aoss_cc || !pdc_global ||
-	    !pdc_status || !tcsr || !sbm)
+	    !pdc_status || !tcsr)
 		return TEE_ERROR_GENERIC;
 
 	/* Bail if the PDC sequencer is mid-transition. */
