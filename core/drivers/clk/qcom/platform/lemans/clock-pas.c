@@ -522,6 +522,7 @@ static TEE_Result gpdsp_reset_processor(const struct gpdsp_reset_regs *r)
 /* HALT_ACK polls for up to 1s; a QDSP6 in a bad state may never ack. */
 #define LPASS_HALT_ACK_TIMEOUT_US	(200000 * 5)
 #define LPASS_COLLAPSE_TIMEOUT_US	400000
+#define LPASS_AUDIO_HM_ON_TIMEOUT_US	10000
 #define LPASS_QCHANNEL_TRIES		10
 
 static TEE_Result lpass_rcg_to_xo(vaddr_t cmd_rcgr, vaddr_t cfg_rcgr)
@@ -600,35 +601,13 @@ static TEE_Result lpass_core_hm_collapse(vaddr_t lpass_base, vaddr_t sbm)
 				      LPASS_COLLAPSE_TIMEOUT_US);
 }
 
-/* Reset LPASS_AUDIO_HM, then power collapse it and LPASS_AUDIO_ML. */
-static TEE_Result lpass_audio_collapse(vaddr_t lpass_base)
+/* Park the LPASS_AUDIO_HM clocks and PLL, then power collapse it. */
+static TEE_Result lpass_audio_hm_collapse(vaddr_t audio_cc, vaddr_t hm_gdscr)
 {
-	vaddr_t aon_cc = lpass_base + LPASS_AON_CC_OFFSET;
-	vaddr_t audio_cc = lpass_base + LPASS_AUDIO_CC_OFFSET;
-	vaddr_t hm_gdscr = aon_cc + LPASS_AON_CC_AUDIO_HM_GDSCR;
-	vaddr_t ml_gdscr = aon_cc + LPASS_AON_CC_AUDIO_ML_GDSCR;
-	vaddr_t bcr = aon_cc + LPASS_AON_CC_AUDIO_HM_BCR;
 	vaddr_t pll_mode = audio_cc + LPASS_AUDIO_CC_PLL_MODE;
 	vaddr_t mclk_rcgr = audio_cc + LPASS_AUDIO_CC_RX_MCLK_CMD_RCGR;
 	TEE_Result res = TEE_SUCCESS;
 	uint32_t val = 0;
-
-	/* The block reset needs the domain powered. */
-	io_clrbits32(hm_gdscr, GDSCR_SW_COLLAPSE_BIT);
-	res = IO_READ32_POLL_TIMEOUT(hm_gdscr, val, val & GDSCR_PWR_ON_BIT, 5,
-				     LPASS_COLLAPSE_TIMEOUT_US);
-	if (res)
-		return res;
-
-	io_setbits32(bcr, BCR_BLK_ARES_BIT);
-	res = IO_READ32_POLL_TIMEOUT(bcr, val, val & BCR_BLK_ARES_BIT, 1,
-				     LPASS_COLLAPSE_TIMEOUT_US);
-	if (res)
-		return res;
-	/* At least five sleep clock cycles each way. */
-	udelay(150);
-	io_clrbits32(bcr, BCR_BLK_ARES_BIT);
-	udelay(150);
 
 	if (io_read32(audio_cc + LPASS_AUDIO_CC_RX_MCLK_MODE_MUXSEL) & BIT(0)) {
 		res = lpass_rcg_to_xo(mclk_rcgr, mclk_rcgr + RCGR_CFG_OFFSET);
@@ -643,11 +622,44 @@ static TEE_Result lpass_audio_collapse(vaddr_t lpass_base)
 	io_clrbits32(audio_cc + LPASS_AUDIO_CC_DIG_PLL_OPMODE, PLL_OPMODE_MASK);
 
 	io_setbits32(hm_gdscr, GDSCR_SW_COLLAPSE_BIT);
-	res = IO_READ32_POLL_TIMEOUT(hm_gdscr, val,
-				     !(val & GDSCR_PWR_ON_BIT), 5,
+
+	return IO_READ32_POLL_TIMEOUT(hm_gdscr, val, !(val & GDSCR_PWR_ON_BIT),
+				      5, LPASS_COLLAPSE_TIMEOUT_US);
+}
+
+/* Reset LPASS_AUDIO_HM, then power collapse it and LPASS_AUDIO_ML. */
+static TEE_Result lpass_audio_collapse(vaddr_t lpass_base)
+{
+	vaddr_t aon_cc = lpass_base + LPASS_AON_CC_OFFSET;
+	vaddr_t audio_cc = lpass_base + LPASS_AUDIO_CC_OFFSET;
+	vaddr_t hm_gdscr = aon_cc + LPASS_AON_CC_AUDIO_HM_GDSCR;
+	vaddr_t ml_gdscr = aon_cc + LPASS_AON_CC_AUDIO_ML_GDSCR;
+	vaddr_t bcr = aon_cc + LPASS_AON_CC_AUDIO_HM_BCR;
+	TEE_Result res = TEE_SUCCESS;
+	uint32_t val = 0;
+
+	/* The block reset needs the domain powered. */
+	io_clrbits32(hm_gdscr, GDSCR_SW_COLLAPSE_BIT);
+	res = IO_READ32_POLL_TIMEOUT(hm_gdscr, val, val & GDSCR_PWR_ON_BIT, 5,
+				     LPASS_AUDIO_HM_ON_TIMEOUT_US);
+	if (res)
+		return res;
+
+	io_setbits32(bcr, BCR_BLK_ARES_BIT);
+	res = IO_READ32_POLL_TIMEOUT(bcr, val, val & BCR_BLK_ARES_BIT, 1,
 				     LPASS_COLLAPSE_TIMEOUT_US);
 	if (res)
 		return res;
+	/* At least five sleep clock cycles each way. */
+	udelay(150);
+	io_clrbits32(bcr, BCR_BLK_ARES_BIT);
+	udelay(150);
+
+	if (io_read32(hm_gdscr) & GDSCR_PWR_ON_BIT) {
+		res = lpass_audio_hm_collapse(audio_cc, hm_gdscr);
+		if (res)
+			return res;
+	}
 
 	if (io_read32(ml_gdscr) & GDSCR_PWR_ON_BIT)
 		io_setbits32(ml_gdscr, GDSCR_SW_COLLAPSE_BIT);
