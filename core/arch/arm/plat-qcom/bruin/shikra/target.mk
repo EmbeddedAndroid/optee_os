@@ -20,3 +20,5 @@ CFG_QCOM_TLMM ?= y
 ifneq ($(CFG_INSECURE),y)
 CFG_QCOM_QFPROM_FUSEPROV ?= y
 endif
+
+CFG_QCOM_GENI_SPI ?= y
