@@ -721,8 +721,7 @@ static TEE_Result lpass_reset_processor(void)
 
 	/* Reset the retention flops too; lpass_fw_start clears these. */
 	io_setbits32(pub + LPASS_QDSP6SS_RET_CFG,
-		     QDSP6SS_RET_CFG_RET_ARES_ENA_BIT |
-		     QDSP6SS_RET_CFG_NRET_ARES_ENA_BIT);
+		     QDSP6SS_RET_CFG_RET_ARES_ENA_BIT);
 
 	io_setbits32(tcsr + TCSR_LPASS_HALTREQ, TCSR_LPASS_BIT);
 	timeout = timeout_init_us(LPASS_HALT_ACK_TIMEOUT_US);

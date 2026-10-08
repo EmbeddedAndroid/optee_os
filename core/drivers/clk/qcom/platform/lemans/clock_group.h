@@ -37,7 +37,6 @@
 #define NSPAUX_GDSCR_RETAIN_FF_ENABLE_BIT	BIT(11)
 #define Q6SS_ALT_RESET_CTL_ALT_ARES_BYPASS_BIT	BIT(0)
 #define QDSP6SS_RET_CFG_RET_ARES_ENA_BIT	BIT(0)
-#define QDSP6SS_RET_CFG_NRET_ARES_ENA_BIT	BIT(1)
 
 /*
  * Global blocks involved in the Turing reset (offsets within each window);
