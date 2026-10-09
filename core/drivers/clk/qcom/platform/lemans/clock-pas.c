@@ -327,7 +327,7 @@ static TEE_Result cdsp_reset_processor(const struct cdsp_reset_regs *r)
 	vaddr_t aoss_cc = QCOM_IO_VA(AOSS_CC_BASE, AOSS_CC_SIZE);
 	vaddr_t gcc_base = QCOM_IO_VA(GCC_BASE, GCC_SIZE);
 	TEE_Result res = TEE_SUCCESS;
-	uint64_t timeout = 0;
+	uint32_t val = 0;
 
 	if (!pub_base || !cc_base || !gcc_base || !aoss_cc || !pdc_global ||
 	    !pdc_status || !tcsr)
@@ -369,13 +369,10 @@ static TEE_Result cdsp_reset_processor(const struct cdsp_reset_regs *r)
 	    !(io_read32(tcsr + r->tcsr_master_idle) & TCSR_TURING_BIT)) {
 		io_setbits32(tcsr + r->tcsr_haltreq, TCSR_TURING_BIT);
 
-		timeout = timeout_init_us(CDSP_HALT_ACK_TIMEOUT_US);
-		while (!(io_read32(tcsr + r->tcsr_haltack) &
-			 TCSR_TURING_BIT)) {
-			if (timeout_elapsed(timeout))
-				break;
-			udelay(5);
-		}
+		/* A QDSP6 in a bad state may never ack; reset it anyway. */
+		IO_READ32_POLL_TIMEOUT(tcsr + r->tcsr_haltack, val,
+				       val & TCSR_TURING_BIT, 5,
+				       CDSP_HALT_ACK_TIMEOUT_US);
 	}
 
 	/* Assert the PDC reset, then pulse the subsystem restart. */
@@ -462,7 +459,7 @@ static TEE_Result gpdsp_reset_processor(const struct gpdsp_reset_regs *r)
 	vaddr_t aoss_cc = QCOM_IO_VA(AOSS_CC_BASE, AOSS_CC_SIZE);
 	vaddr_t gcc_base = QCOM_IO_VA(GCC_BASE, GCC_SIZE);
 	vaddr_t pub = base + TURINGGDSP_PUB_OFFSET;
-	uint64_t timeout = 0;
+	uint32_t val = 0;
 
 	if (!base || !gcc_base || !aoss_cc || !pdc_global || !pdc_status ||
 	    !tcsr)
@@ -493,13 +490,10 @@ static TEE_Result gpdsp_reset_processor(const struct gpdsp_reset_regs *r)
 		      TCSR_TURING_BIT)) {
 			io_setbits32(tcsr + r->tcsr_haltreq, TCSR_TURING_BIT);
 
-			timeout = timeout_init_us(GPDSP_HALT_ACK_TIMEOUT_US);
-			while (!(io_read32(tcsr + r->tcsr_haltack) &
-				 TCSR_TURING_BIT)) {
-				if (timeout_elapsed(timeout))
-					break;
-				udelay(5);
-			}
+			/* A QDSP6 in a bad state may never ack. */
+			IO_READ32_POLL_TIMEOUT(tcsr + r->tcsr_haltack, val,
+					       val & TCSR_TURING_BIT, 5,
+					       GPDSP_HALT_ACK_TIMEOUT_US);
 		}
 	}
 
@@ -686,7 +680,7 @@ static TEE_Result lpass_reset_processor(void)
 	vaddr_t pub = lpass_base + LPASS_PUB_OFFSET;
 	vaddr_t sbm = lpass_base + LPASS_AG_NOC_SBM_OFFSET;
 	TEE_Result res = TEE_SUCCESS;
-	uint64_t timeout = 0;
+	uint32_t val = 0;
 	bool island = false;
 
 	if (!gcc_base || !lpass_base || !aoss_cc || !pdc_global ||
@@ -725,12 +719,10 @@ static TEE_Result lpass_reset_processor(void)
 		     QDSP6SS_RET_CFG_RET_ARES_ENA_BIT);
 
 	io_setbits32(tcsr + TCSR_LPASS_HALTREQ, TCSR_LPASS_BIT);
-	timeout = timeout_init_us(LPASS_HALT_ACK_TIMEOUT_US);
-	while (!(io_read32(tcsr + TCSR_LPASS_HALTACK) & TCSR_LPASS_BIT)) {
-		if (timeout_elapsed(timeout))
-			break;
-		udelay(5);
-	}
+	/* A QDSP6 in a bad state may never ack; reset it anyway. */
+	IO_READ32_POLL_TIMEOUT(tcsr + TCSR_LPASS_HALTACK, val,
+			       val & TCSR_LPASS_BIT, 5,
+			       LPASS_HALT_ACK_TIMEOUT_US);
 
 	io_setbits32(pdc_global + RPMH_PDC_SYNC_RESET,
 		     PDC_SYNC_RESET_AUDIO_BIT);
