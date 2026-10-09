@@ -15,9 +15,9 @@
 
 #include "clock_group.h"
 
-/* Map a fixed MMIO window and return its core VA (0 if not mapped). */
-#define QCOM_IO_MAP(phys, size) \
-	io_pa_or_va(&(struct io_pa_va){ .pa = (phys) }, (size))
+/* Core VA of a registered or mapped MMIO range, 0 if there is none. */
+#define QCOM_IO_VA(phys, size) \
+	((vaddr_t)phys_to_virt_io((phys), (size)))
 
 register_phys_mem(MEM_AREA_IO_NSEC, AOSS_CC_BASE, AOSS_CC_SIZE);
 register_phys_mem(MEM_AREA_IO_NSEC, RPMH_PDC_GLOBAL_BASE, RPMH_PDC_GLOBAL_SIZE);
@@ -31,7 +31,7 @@ register_phys_mem(MEM_AREA_IO_NSEC, TCSR_MUTEX_BASE, TCSR_MUTEX_SIZE);
 
 static TEE_Result cdsp_enable(paddr_t turing_base)
 {
-	vaddr_t cc_base = QCOM_IO_MAP(turing_base + TURINGNSP_CC_OFFSET,
+	vaddr_t cc_base = QCOM_IO_VA(turing_base + TURINGNSP_CC_OFFSET,
 				     0x50000);
 	uint64_t timeout = timeout_init_us(10000);
 	TEE_Result res = TEE_SUCCESS;
@@ -87,8 +87,8 @@ static const struct qcom_lucidevo_pll_config q6_pll_cfg = {
  */
 static TEE_Result cdsp_enable_processor(paddr_t turing_base)
 {
-	vaddr_t boot_base = QCOM_IO_MAP(turing_base + TURINGNSP_BOOT_OFFSET,
-					TURINGNSP_PROC_WINDOW_SIZE);
+	vaddr_t boot_base = QCOM_IO_VA(turing_base + TURINGNSP_BOOT_OFFSET,
+				       TURINGNSP_PROC_WINDOW_SIZE);
 	vaddr_t pll_base = boot_base - TURINGNSP_BOOT_OFFSET +
 			   TURINGNSP_Q6_PLL_OFFSET;
 	vaddr_t core_cc = boot_base - TURINGNSP_BOOT_OFFSET +
@@ -129,8 +129,8 @@ static const struct qcom_lucidevo_pll_config lpass_q6_pll_cfg = {
  */
 static TEE_Result lpass_setup(void)
 {
-	vaddr_t lpass_base = QCOM_IO_MAP(LPASS_BASE, LPASS_SIZE);
-	vaddr_t gcc_base = QCOM_IO_MAP(GCC_BASE, GCC_SIZE);
+	vaddr_t lpass_base = QCOM_IO_VA(LPASS_BASE, LPASS_SIZE);
+	vaddr_t gcc_base = QCOM_IO_VA(GCC_BASE, GCC_SIZE);
 	vaddr_t aon_cc = lpass_base + LPASS_AON_CC_OFFSET;
 	vaddr_t top_cc = lpass_base + LPASS_TOP_CC_OFFSET;
 	vaddr_t core_cc = lpass_base + LPASS_CORE_CC_OFFSET;
@@ -193,8 +193,8 @@ static const struct qcom_lucidevo_pll_config gpdsp_q6_pll_cfg = {
 static TEE_Result gpdsp_setup(paddr_t gdsp_base, uint32_t gcc_cfg_ahb_cbcr,
 			      uint32_t gcc_aggre_axi_cbcr)
 {
-	vaddr_t base = QCOM_IO_MAP(gdsp_base, TURING_GDSP_0_SIZE);
-	vaddr_t gcc_base = QCOM_IO_MAP(GCC_BASE, GCC_SIZE);
+	vaddr_t base = QCOM_IO_VA(gdsp_base, TURING_GDSP_0_SIZE);
+	vaddr_t gcc_base = QCOM_IO_VA(GCC_BASE, GCC_SIZE);
 	vaddr_t gdsp_cc = base + TURINGGDSP_GDSP_CC_OFFSET;
 	vaddr_t core_cc = base + TURINGGDSP_CORE_CC_OFFSET;
 	vaddr_t pll_base = base + TURINGGDSP_PLL_OFFSET;
@@ -315,17 +315,17 @@ static const struct cdsp_reset_regs cdsp1_reset_regs = {
  */
 static TEE_Result cdsp_reset_processor(const struct cdsp_reset_regs *r)
 {
-	vaddr_t pub_base = QCOM_IO_MAP(r->turing_base + TURINGNSP_BOOT_OFFSET,
+	vaddr_t pub_base = QCOM_IO_VA(r->turing_base + TURINGNSP_BOOT_OFFSET,
 				      TURINGNSP_PROC_WINDOW_SIZE);
-	vaddr_t cc_base = QCOM_IO_MAP(r->turing_base + TURINGNSP_CC_OFFSET,
+	vaddr_t cc_base = QCOM_IO_VA(r->turing_base + TURINGNSP_CC_OFFSET,
 				     TURINGNSP_PROC_WINDOW_SIZE);
-	vaddr_t pdc_global = QCOM_IO_MAP(RPMH_PDC_GLOBAL_BASE,
+	vaddr_t pdc_global = QCOM_IO_VA(RPMH_PDC_GLOBAL_BASE,
 					RPMH_PDC_GLOBAL_SIZE);
-	vaddr_t pdc_status = QCOM_IO_MAP(r->pdc_status_base,
+	vaddr_t pdc_status = QCOM_IO_VA(r->pdc_status_base,
 					r->pdc_status_size);
-	vaddr_t tcsr = QCOM_IO_MAP(TCSR_MUTEX_BASE, TCSR_MUTEX_SIZE);
-	vaddr_t aoss_cc = QCOM_IO_MAP(AOSS_CC_BASE, AOSS_CC_SIZE);
-	vaddr_t gcc_base = QCOM_IO_MAP(GCC_BASE, GCC_SIZE);
+	vaddr_t tcsr = QCOM_IO_VA(TCSR_MUTEX_BASE, TCSR_MUTEX_SIZE);
+	vaddr_t aoss_cc = QCOM_IO_VA(AOSS_CC_BASE, AOSS_CC_SIZE);
+	vaddr_t gcc_base = QCOM_IO_VA(GCC_BASE, GCC_SIZE);
 	TEE_Result res = TEE_SUCCESS;
 	uint64_t timeout = 0;
 
@@ -453,14 +453,14 @@ static const struct gpdsp_reset_regs gpdsp1_reset_regs = {
  */
 static TEE_Result gpdsp_reset_processor(const struct gpdsp_reset_regs *r)
 {
-	vaddr_t pdc_global = QCOM_IO_MAP(RPMH_PDC_GLOBAL_BASE,
+	vaddr_t pdc_global = QCOM_IO_VA(RPMH_PDC_GLOBAL_BASE,
 					RPMH_PDC_GLOBAL_SIZE);
-	vaddr_t pdc_status = QCOM_IO_MAP(r->pdc_status_base,
+	vaddr_t pdc_status = QCOM_IO_VA(r->pdc_status_base,
 					r->pdc_status_size);
-	vaddr_t base = QCOM_IO_MAP(r->gdsp_base, TURING_GDSP_0_SIZE);
-	vaddr_t tcsr = QCOM_IO_MAP(TCSR_MUTEX_BASE, TCSR_MUTEX_SIZE);
-	vaddr_t aoss_cc = QCOM_IO_MAP(AOSS_CC_BASE, AOSS_CC_SIZE);
-	vaddr_t gcc_base = QCOM_IO_MAP(GCC_BASE, GCC_SIZE);
+	vaddr_t base = QCOM_IO_VA(r->gdsp_base, TURING_GDSP_0_SIZE);
+	vaddr_t tcsr = QCOM_IO_VA(TCSR_MUTEX_BASE, TCSR_MUTEX_SIZE);
+	vaddr_t aoss_cc = QCOM_IO_VA(AOSS_CC_BASE, AOSS_CC_SIZE);
+	vaddr_t gcc_base = QCOM_IO_VA(GCC_BASE, GCC_SIZE);
 	vaddr_t pub = base + TURINGGDSP_PUB_OFFSET;
 	uint64_t timeout = 0;
 
@@ -674,14 +674,14 @@ static TEE_Result lpass_audio_collapse(vaddr_t lpass_base)
  */
 static TEE_Result lpass_reset_processor(void)
 {
-	vaddr_t pdc_global = QCOM_IO_MAP(RPMH_PDC_GLOBAL_BASE,
+	vaddr_t pdc_global = QCOM_IO_VA(RPMH_PDC_GLOBAL_BASE,
 					RPMH_PDC_GLOBAL_SIZE);
-	vaddr_t pdc_status = QCOM_IO_MAP(RPMH_PDC_AUDIO_BASE,
+	vaddr_t pdc_status = QCOM_IO_VA(RPMH_PDC_AUDIO_BASE,
 					RPMH_PDC_AUDIO_SIZE);
-	vaddr_t tcsr = QCOM_IO_MAP(TCSR_MUTEX_BASE, TCSR_MUTEX_SIZE);
-	vaddr_t aoss_cc = QCOM_IO_MAP(AOSS_CC_BASE, AOSS_CC_SIZE);
-	vaddr_t lpass_base = QCOM_IO_MAP(LPASS_BASE, LPASS_SIZE);
-	vaddr_t gcc_base = QCOM_IO_MAP(GCC_BASE, GCC_SIZE);
+	vaddr_t tcsr = QCOM_IO_VA(TCSR_MUTEX_BASE, TCSR_MUTEX_SIZE);
+	vaddr_t aoss_cc = QCOM_IO_VA(AOSS_CC_BASE, AOSS_CC_SIZE);
+	vaddr_t lpass_base = QCOM_IO_VA(LPASS_BASE, LPASS_SIZE);
+	vaddr_t gcc_base = QCOM_IO_VA(GCC_BASE, GCC_SIZE);
 	vaddr_t aon_cc = lpass_base + LPASS_AON_CC_OFFSET;
 	vaddr_t pub = lpass_base + LPASS_PUB_OFFSET;
 	vaddr_t sbm = lpass_base + LPASS_AG_NOC_SBM_OFFSET;
@@ -774,7 +774,7 @@ TEE_Result qcom_clock_pas_reset(enum qcom_clk_group group)
 
 TEE_Result qcom_clock_enable_pas(enum qcom_clk_group group)
 {
-	vaddr_t gcc_base = QCOM_IO_MAP(GCC_BASE, GCC_SIZE);
+	vaddr_t gcc_base = QCOM_IO_VA(GCC_BASE, GCC_SIZE);
 	TEE_Result res = 0;
 
 	switch (group) {
