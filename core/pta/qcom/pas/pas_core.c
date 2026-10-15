@@ -4,6 +4,7 @@
  */
 
 #include <drivers/clk_qcom.h>
+#include <inttypes.h>
 #include <mm/core_mmu.h>
 #include <platform_pas.h>
 #include <trace.h>
@@ -94,6 +95,38 @@ TEE_Result pas_platform_set_remote_state(uint32_t pas_id, uint32_t state)
 	return subsys->ops->fw_set_state(&subsys->data, state);
 }
 
+static TEE_Result pas_shutdown(struct qcom_pas_subsys *subsys)
+{
+	TEE_Result res = TEE_ERROR_NOT_SUPPORTED;
+
+	if (subsys->ops->fw_shutdown)
+		res = subsys->ops->fw_shutdown(&subsys->data);
+
+	if (!res) {
+		subsys->data.fw_base = 0;
+		subsys->data.fw_size = 0;
+	}
+
+	return res;
+}
+
+/*
+ * A failed start can leave the processor running or half released while
+ * Linux unmaps its firmware, and Linux does not shut it down after a failed
+ * PAS call: put it back into reset here. Returns @err, the start failure.
+ */
+static TEE_Result pas_unwind_start(struct qcom_pas_subsys *subsys,
+				   TEE_Result err)
+{
+	TEE_Result res = pas_shutdown(subsys);
+
+	if (res)
+		EMSG("PAS %"PRIu32": reset after failed start %#"PRIx32
+		     " failed: %#"PRIx32, subsys->data.pas_id, err, res);
+
+	return err;
+}
+
 TEE_Result pas_platform_auth_and_reset(uint32_t pas_id)
 {
 	struct qcom_pas_subsys *subsys = qcom_pas_lookup(pas_id);
@@ -111,23 +144,35 @@ TEE_Result pas_platform_auth_and_reset(uint32_t pas_id)
 	case QCOM_PAS_RESET_CLK_FULL:
 		res = qcom_clock_enable(data->clk_group);
 		if (res != TEE_SUCCESS)
-			return res;
+			return pas_unwind_start(subsys, res);
 
 		res = subsys->ops->fw_start(data);
 		if (res != TEE_SUCCESS)
-			return res;
+			return pas_unwind_start(subsys, res);
 
-		return qcom_clock_enable_pas_processor(data->clk_group);
+		res = qcom_clock_enable_pas_processor(data->clk_group);
+		if (res != TEE_SUCCESS)
+			return pas_unwind_start(subsys, res);
+
+		return TEE_SUCCESS;
 	case QCOM_PAS_RESET_CLK_ENABLE:
 		res = qcom_clock_enable(data->clk_group);
 		if (res != TEE_SUCCESS) {
 			EMSG("Failed to enable clocks: %d", res);
-			return res;
+			return pas_unwind_start(subsys, res);
 		}
 
-		return subsys->ops->fw_start(data);
+		res = subsys->ops->fw_start(data);
+		if (res != TEE_SUCCESS)
+			return pas_unwind_start(subsys, res);
+
+		return TEE_SUCCESS;
 	case QCOM_PAS_RESET_NONE:
-		return subsys->ops->fw_start(data);
+		res = subsys->ops->fw_start(data);
+		if (res != TEE_SUCCESS)
+			return pas_unwind_start(subsys, res);
+
+		return TEE_SUCCESS;
 	default:
 		return TEE_ERROR_NOT_SUPPORTED;
 	}
@@ -136,16 +181,9 @@ TEE_Result pas_platform_auth_and_reset(uint32_t pas_id)
 TEE_Result pas_platform_shutdown(uint32_t pas_id)
 {
 	struct qcom_pas_subsys *subsys = qcom_pas_lookup(pas_id);
-	TEE_Result res = TEE_ERROR_GENERIC;
 
 	if (!subsys || !subsys->ops->fw_shutdown)
 		return TEE_ERROR_NOT_SUPPORTED;
 
-	res = subsys->ops->fw_shutdown(&subsys->data);
-	if (!res) {
-		subsys->data.fw_base = 0;
-		subsys->data.fw_size = 0;
-	}
-
-	return res;
+	return pas_shutdown(subsys);
 }
