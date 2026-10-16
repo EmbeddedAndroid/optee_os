@@ -380,25 +380,27 @@ static TEE_Result turing_reset_processor(void)
 	/* Halt config NoC traffic by disconnecting the slave port */
 	io_clrbits32(gcc + GCC_TURING_CFG_AHB_CBCR, CBCR_BRANCH_ENABLE_BIT);
 
-	if (io_read32(halt + TCSR_TURING_PWR_ON) & TCSR_HALT_BIT) {
-		if (!(io_read32(halt + TCSR_MASTER_IDLE) & TCSR_HALT_BIT))
-			halt_port(halt, "CDSP");
+	/*
+	 * TCSR_TURING_PWR_ON only says whether the bus master port can be
+	 * halted: a core released moments ago runs with it still clear, so
+	 * the restart below must not depend on it.
+	 */
+	if ((io_read32(halt + TCSR_TURING_PWR_ON) & TCSR_HALT_BIT) &&
+	    !(io_read32(halt + TCSR_MASTER_IDLE) & TCSR_HALT_BIT))
+		halt_port(halt, "CDSP");
 
-		io_setbits32(pdc + RPMH_PDC_SYNC_RESET,
-			     PDC_SYNC_RESET_COMPUTE_BIT);
-		io_setbits32(aoss_cc + AOSS_CC_COMPUTESS_RESTART,
-			     AOSS_CC_SS_RESTART_BIT);
-		dsb();
-		udelay(200);
+	io_setbits32(pdc + RPMH_PDC_SYNC_RESET, PDC_SYNC_RESET_COMPUTE_BIT);
+	io_setbits32(aoss_cc + AOSS_CC_COMPUTESS_RESTART,
+		     AOSS_CC_SS_RESTART_BIT);
+	dsb();
+	udelay(200);
 
-		io_clrbits32(halt + TCSR_HALTREQ, TCSR_HALT_BIT);
-		io_clrbits32(pdc + RPMH_PDC_SYNC_RESET,
-			     PDC_SYNC_RESET_COMPUTE_BIT);
-		io_clrbits32(aoss_cc + AOSS_CC_COMPUTESS_RESTART,
-			     AOSS_CC_SS_RESTART_BIT);
-		dsb();
-		udelay(200);
-	}
+	io_clrbits32(halt + TCSR_HALTREQ, TCSR_HALT_BIT);
+	io_clrbits32(pdc + RPMH_PDC_SYNC_RESET, PDC_SYNC_RESET_COMPUTE_BIT);
+	io_clrbits32(aoss_cc + AOSS_CC_COMPUTESS_RESTART,
+		     AOSS_CC_SS_RESTART_BIT);
+	dsb();
+	udelay(200);
 
 	io_write32(tcsr_regs + TCSR_CXIP_LM_FNT_CLEAR,
 		   TCSR_CXIP_LM_FNT_CLEAR_ALL);
