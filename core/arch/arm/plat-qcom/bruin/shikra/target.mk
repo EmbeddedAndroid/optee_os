@@ -9,6 +9,12 @@ ifeq ($(CFG_QCOM_QFPROM_FUSEPROV),y)
 $(call force,CFG_QCOM_QFPROM,y)
 endif
 
+CFG_QCOM_CLK_CFG ?= y
+ifeq ($(CFG_QCOM_CLK_CFG),y)
+$(call force,CFG_QCOM_RPM_CLIENT,y)
+CFG_QCOM_RPM_TRANSPORT_STUB ?= y
+endif
+
 CFG_QCOM_TLMM ?= y
 
 CFG_QCOM_HWKM ?= y
