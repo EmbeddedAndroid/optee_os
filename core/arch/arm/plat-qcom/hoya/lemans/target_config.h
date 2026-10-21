@@ -59,9 +59,8 @@
 #define LPASS_SIZE			ULL(0x01080000)
 
 /*
- * IRIS video-codec subsystem. The window covers the VCODEC_IRIS_WRAPPER_TOP
- * (IRIS+0xb0000) and WRAPPER_TZ (IRIS+0xc0000) blocks the bring-up path
- * touches.
+ * IRIS video-codec subsystem. The window covers every iris register block
+ * the PAS driver programs.
  */
 #define IRIS_BASE			UL(0x0aa00000)
 #define IRIS_SIZE			ULL(0x00200000)
