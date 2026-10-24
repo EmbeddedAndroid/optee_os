@@ -193,6 +193,8 @@ static TEE_Result venus_fill_seed(struct qcom_pas_data *data)
 		return TEE_ERROR_GENERIC;
 
 	res = crypto_rng_read(va, len);
+	if (!res)
+		res = cache_op_inner(DCACHE_AREA_CLEAN, va, len);
 
 	if (core_mmu_remove_mapping(MEM_AREA_RAM_NSEC, va, len))
 		EMSG("Venus: failed to unmap the firmware seed");
