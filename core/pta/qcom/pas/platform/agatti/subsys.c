@@ -1,0 +1,55 @@
+// SPDX-License-Identifier: BSD-2-Clause
+/*
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+ */
+
+#include <platform_config.h>
+#include <pta_qcom_pas.h>
+#include <stddef.h>
+#include <util.h>
+
+#include "gpu.h"
+#include "lpass.h"
+#include "pas_subsys.h"
+#include "venus.h"
+
+static struct qcom_pas_subsys subsystems[] = {
+	{
+		.data = {
+			.pas_id = PAS_ID_QDSP6,
+			.base.pa = LPASS_BASE,
+			.size = LPASS_SIZE,
+			.map_type = MEM_AREA_IO_NSEC,
+			.clk_group = QCOM_CLKS_LPASS,
+		},
+		.ops = &lpass_ops,
+		.reset_seq = QCOM_PAS_RESET_CLK_ENABLE,
+	},
+	{
+		.data = {
+			.pas_id = PAS_ID_GPU,
+			.base.pa = GPU_BASE,
+			.size = GPU_SIZE,
+			.map_type = MEM_AREA_IO_NSEC,
+		},
+		.ops = &gpu_ops,
+		.reset_seq = QCOM_PAS_RESET_NONE,
+	},
+	{
+		.data = {
+			.pas_id = PAS_ID_IRIS,
+			.base.pa = VENUS_BASE,
+			.size = VENUS_SIZE,
+			.map_type = MEM_AREA_IO_NSEC,
+		},
+		.ops = &venus_ops,
+		.reset_seq = QCOM_PAS_RESET_NONE,
+	},
+};
+
+struct qcom_pas_subsys *qcom_pas_platform_subsys(size_t *count)
+{
+	*count = ARRAY_SIZE(subsystems);
+
+	return subsystems;
+}

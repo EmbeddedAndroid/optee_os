@@ -13,6 +13,21 @@
 /* QUPV3_0 SE4 */
 #define GENI_UART_REG_BASE		UL(0x04a90000)
 
+#define GCC_BASE			UL(0x01400000)
+#define GCC_SIZE			UL(0x001f0000)
+
+#define TCSR_BASE			UL(0x00300000)
+#define TCSR_SIZE			UL(0x00100000)
+
+#define LPASS_BASE			UL(0x0a000000)
+#define LPASS_SIZE			UL(0x01000000)
+
+#define GPU_BASE			UL(0x05900000)
+#define GPU_SIZE			UL(0x00040000)
+
+#define VENUS_BASE			UL(0x05a00000)
+#define VENUS_SIZE			UL(0x000f0000)
+
 /* GIC-500 redistributor (GICD_BASE is common to the family). */
 #define GICR_BASE			UL(0x0f300000)
 
