@@ -10,6 +10,9 @@ records its conflict resolutions, the ones redone in the refresh under
 "Conflicts (refresh 2026-10-25)". Snapshot of the gated state before the
 refresh: tag qcom/integration-20261024.
 
+Added 2026-10-26: qcom/kailua (SM8550 HDK), merged on top of the gated
+refresh; the state before it is tag qcom/integration-20261025.
+
 ## Platform branches
 
 | platform | branch | on | carries | upstream status |
@@ -20,6 +23,7 @@ refresh: tag qcom/integration-20261024.
 | talos | qcom/talos | base | Talos support, PAS, map type, Turing restart, failed-start fix | not submitted (failed-start fix from PR 8073) |
 | agatti | qcom/agatti | base | PR 8131 head 85cf46ea5 (Igor) + GPU zap + PR 8124 commits 1..4 + venus + venus seed clean | 8131 open; GPU/venus not submitted |
 | lanai | qcom/lanai | base | SM8650 | not submitted |
+| kailua | qcom/kailua | lanai | SM8550 | not submitted |
 | shikra | qcom/shikra | base | PR 8107 head 64501d96e, PR 8122 head bd53e42c3, PR 8134 head 21fffcf6d | open (7926/8105 merged in the base) |
 
 ## Per-patch submission map
@@ -125,6 +129,7 @@ Each commit of a platform branch (from its parent: the base or the branch it bui
 | commit | subject | author | submission | note |
 |---|---|---|---|---|
 | 964364719862 | plat-qcom: wildcat: add Lanai (SM8650) | Tyler Baker | not submitted |  |
+| 033d0c629c51 | ci: qcom: add lanai platform build | Tyler Baker | not submitted |  |
 
 ### qcom/shikra (on the base)
 
@@ -136,6 +141,13 @@ Each commit of a platform branch (from its parent: the base or the branch it bui
 | ebbbd4a79f2e | plat-qcom: shikra: add QUP clock support | Naresh Nunna | PR 8122 head bd53e42c36b2 | adapted |
 | 62a6594de998 | drivers: qcom: tlmm: enable driver for Shikra | Siva Rama Krishna Potu | PR 8134 head 21fffcf6de4a | adapted |
 
+
+### qcom/kailua (on qcom/lanai)
+
+| commit | subject | author | submission | note |
+|---|---|---|---|---|
+| e34bccb9bec9 | plat-qcom: wildcat: add Kailua (SM8550) | Tyler Baker | not submitted |  |
+| b39dc9544e5a | ci: qcom: add kailua platform build | Tyler Baker | not submitted |  |
 
 ## In-flight submissions not carried
 
@@ -162,3 +174,4 @@ job cannot reach it). Jobs: https://lava.infra.foundries.io/scheduler/job/<id>.
 | talos | public | QCDFP-261025-92 | 512759 | equal to 511901 except the known KVM PMU timing race (now passing) and the OSM cpufreq checks (not carried, skip) |
 | shikra | public | QCDFP-261025-91 | 512770 | U-Boot only (Shikra v4) on the stock XBL/QSEE/Gunyah health image: FP, Linux, login and the health smoke tests pass as health job 511579; no upstream TF-A/OP-TEE boot path yet |
 | lanai | public |  |  | untested: no LAVA board |
+| kailua | public |  |  | untested: no board yet (lab access pending) |
