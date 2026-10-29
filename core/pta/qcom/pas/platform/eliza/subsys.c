@@ -9,8 +9,10 @@
 #include <util.h>
 
 #include "cdsp.h"
+#include "lpass.h"
 #include "pas_subsys.h"
 
+static const uint32_t adsp_deps[] = { PAS_ID_QDSP6_DTB, 0 };
 static const uint32_t cdsp_deps[] = { PAS_ID_TURING_DTB, 0 };
 
 /*
@@ -20,6 +22,29 @@ static const uint32_t cdsp_deps[] = { PAS_ID_TURING_DTB, 0 };
  * core.
  */
 static struct qcom_pas_subsys subsystems[] = {
+	{
+		.data = {
+			.pas_id = PAS_ID_QDSP6_DTB,
+			.base.pa = LPASS_BASE,
+			.size = LPASS_SIZE,
+			.clk_group = QCOM_CLKS_LPASS,
+			.map_type = MEM_AREA_IO_SEC,
+		},
+		.ops = &lpass_dtb_ops,
+		.reset_seq = QCOM_PAS_RESET_CLK_ENABLE,
+	},
+	{
+		.data = {
+			.pas_id = PAS_ID_QDSP6,
+			.depends_on = adsp_deps,
+			.base.pa = LPASS_BASE,
+			.size = LPASS_SIZE,
+			.clk_group = QCOM_CLKS_LPASS,
+			.map_type = MEM_AREA_IO_SEC,
+		},
+		.ops = &lpass_ops,
+		.reset_seq = QCOM_PAS_RESET_NONE,
+	},
 	{
 		.data = {
 			.pas_id = PAS_ID_TURING_DTB,
