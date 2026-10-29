@@ -6,6 +6,7 @@
 #include <drivers/clk_qcom.h>
 #include <mm/core_mmu.h>
 #include <platform_pas.h>
+#include <string.h>
 #include <trace.h>
 #include <util.h>
 
@@ -140,16 +141,53 @@ TEE_Result pas_platform_mem_setup(uint32_t pas_id, uint32_t fw_size,
 	return TEE_SUCCESS;
 }
 
+/*
+ * Serialise the device memory table of @pas_id into @rt: the header and
+ * offset[] array, then one RSC_DEVMEM header and entry per region. A
+ * @size smaller than the table is a size query and returns the size.
+ */
 TEE_Result pas_platform_get_resource_table(uint32_t pas_id,
 					   struct resource_table *rt,
 					   size_t *size)
 {
+	const size_t entry_size = sizeof(struct fw_rsc_hdr) +
+				  sizeof(struct fw_rsc_devmem);
 	struct qcom_pas_subsys *subsys = qcom_pas_lookup(pas_id);
+	const struct qcom_pas_ops *ops = NULL;
+	uint8_t *p = (uint8_t *)rt;
+	size_t table_size = 0;
+	size_t offset = 0;
 
-	if (!subsys || !subsys->ops->get_resource_table)
+	if (!subsys || !subsys->ops->devmem)
 		return TEE_ERROR_NOT_SUPPORTED;
 
-	return subsys->ops->get_resource_table(rt, size);
+	ops = subsys->ops;
+	offset = sizeof(*rt) + ops->devmem_num * sizeof(rt->offset[0]);
+	table_size = offset + ops->devmem_num * entry_size;
+	if (*size < table_size) {
+		*size = table_size;
+		return TEE_SUCCESS;
+	}
+
+	if (!rt)
+		return TEE_ERROR_BAD_PARAMETERS;
+
+	rt->ver = 1;
+	rt->num = ops->devmem_num;
+	rt->reserved[0] = 0;
+	rt->reserved[1] = 0;
+
+	for (size_t i = 0; i < ops->devmem_num; i++) {
+		const struct fw_rsc_hdr hdr = { .type = RSC_DEVMEM };
+
+		rt->offset[i] = offset;
+		memcpy(p + offset, &hdr, sizeof(hdr));
+		memcpy(p + offset + sizeof(hdr), ops->devmem + i,
+		       sizeof(*ops->devmem));
+		offset += entry_size;
+	}
+
+	return TEE_SUCCESS;
 }
 
 TEE_Result pas_platform_set_remote_state(uint32_t pas_id, uint32_t state)

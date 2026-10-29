@@ -20,18 +20,20 @@
  * member may be NULL when the subsystem does not implement that operation;
  * the generic core (pas_core.c) returns the appropriate error in that case.
  *
- * @fw_start:           Program the firmware entry and run the boot FSM.
- * @fw_shutdown:        Put the processor back into reset.
- * @fw_set_state:       Power the processor on (@on == true) or off.
- * @get_resource_table: Serialise the firmware resource table (see
- *                      resource_table.h).  NULL for subsystems with no table.
+ * @fw_start:     Program the firmware entry and run the boot FSM.
+ * @fw_shutdown:  Put the processor back into reset.
+ * @fw_set_state: Power the processor on (@on == true) or off.
+ * @devmem:       Device memory regions of the firmware resource table, which
+ *                the generic core serialises (see resource_table.h).  NULL
+ *                for subsystems with no table.
+ * @devmem_num:   Number of entries in @devmem.
  */
 struct qcom_pas_ops {
 	TEE_Result (*fw_start)(struct qcom_pas_data *data);
 	TEE_Result (*fw_shutdown)(struct qcom_pas_data *data);
 	TEE_Result (*fw_set_state)(struct qcom_pas_data *data, bool on);
-	TEE_Result (*get_resource_table)(struct resource_table *rt,
-					 size_t *size);
+	const struct fw_rsc_devmem *devmem;
+	size_t devmem_num;
 };
 
 /*
