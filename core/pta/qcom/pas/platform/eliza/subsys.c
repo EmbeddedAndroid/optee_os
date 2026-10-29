@@ -12,8 +12,12 @@
 #include "lpass.h"
 #include "pas_subsys.h"
 
+#ifdef CFG_QCOM_PAS_ADSP
 static const uint32_t adsp_deps[] = { PAS_ID_QDSP6_DTB, 0 };
+#endif
+#ifdef CFG_QCOM_PAS_CDSP
 static const uint32_t cdsp_deps[] = { PAS_ID_TURING_DTB, 0 };
+#endif
 
 /*
  * Linux authenticates and resets a DSP's device tree image (the DTB PAS ID)
@@ -22,6 +26,7 @@ static const uint32_t cdsp_deps[] = { PAS_ID_TURING_DTB, 0 };
  * core.
  */
 static struct qcom_pas_subsys subsystems[] = {
+#ifdef CFG_QCOM_PAS_ADSP
 	{
 		.data = {
 			.pas_id = PAS_ID_QDSP6_DTB,
@@ -45,6 +50,8 @@ static struct qcom_pas_subsys subsystems[] = {
 		.ops = &lpass_ops,
 		.reset_seq = QCOM_PAS_RESET_NONE,
 	},
+#endif
+#ifdef CFG_QCOM_PAS_CDSP
 	{
 		.data = {
 			.pas_id = PAS_ID_TURING_DTB,
@@ -68,6 +75,7 @@ static struct qcom_pas_subsys subsystems[] = {
 		.ops = &cdsp_ops,
 		.reset_seq = QCOM_PAS_RESET_NONE,
 	},
+#endif
 };
 
 struct qcom_pas_subsys *qcom_pas_platform_subsys(size_t *count)
