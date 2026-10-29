@@ -139,6 +139,28 @@ TEE_Result qcom_clock_set_rate(vaddr_t cfg_rcgr, vaddr_t cmd_rcgr,
 	return TEE_SUCCESS;
 }
 
+/* Bus halt request and acknowledge registers */
+#define Q6_HALT_BIT			BIT(0)
+#define Q6_HALT_ACK_POLL_US		5
+
+TEE_Result qcom_q6_halt(vaddr_t haltreq, vaddr_t haltack, uint32_t timeout_us)
+{
+	uint32_t val = 0;
+
+	io_setbits32(haltreq, Q6_HALT_BIT);
+
+	if (IO_READ32_POLL_TIMEOUT(haltack, val, val & Q6_HALT_BIT,
+				   Q6_HALT_ACK_POLL_US, timeout_us))
+		return TEE_ERROR_TIMEOUT;
+
+	return TEE_SUCCESS;
+}
+
+void qcom_q6_halt_release(vaddr_t haltreq)
+{
+	io_clrbits32(haltreq, Q6_HALT_BIT);
+}
+
 TEE_Result qcom_clock_enable(enum qcom_clk_group group)
 {
 	switch (group) {

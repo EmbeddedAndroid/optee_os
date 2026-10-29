@@ -64,6 +64,15 @@ TEE_Result qcom_clock_enable_cbc(vaddr_t cbcr);
 TEE_Result qcom_clock_set_rate(vaddr_t cfg_rcgr, vaddr_t cmd_rcgr,
 			       uint32_t cfg_value);
 
+/*
+ * Halt the bus master ports of a Q6 subsystem ahead of its reset: request
+ * the halt at @haltreq and wait up to @timeout_us for @haltack. Returns
+ * TEE_ERROR_TIMEOUT without the acknowledge; the request stays set until
+ * qcom_q6_halt_release().
+ */
+TEE_Result qcom_q6_halt(vaddr_t haltreq, vaddr_t haltack, uint32_t timeout_us);
+void qcom_q6_halt_release(vaddr_t haltreq);
+
 /* Configure, lock and enable a Lucid-EVO PLL at @pll_base; returns
  * TEE_ERROR_TIMEOUT if it fails to lock.
  */

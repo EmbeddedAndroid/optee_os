@@ -29,16 +29,6 @@ register_phys_mem(MEM_AREA_IO_NSEC, RPMH_PDC_GPDSP1_BASE, RPMH_PDC_GPDSP1_SIZE);
 register_phys_mem(MEM_AREA_IO_NSEC, RPMH_PDC_AUDIO_BASE, RPMH_PDC_AUDIO_SIZE);
 register_phys_mem(MEM_AREA_IO_NSEC, TCSR_MUTEX_BASE, TCSR_MUTEX_SIZE);
 
-static bool turing_halt_acked(uint32_t val)
-{
-	return val & TCSR_TURING_BIT;
-}
-
-static bool lpass_halt_acked(uint32_t val)
-{
-	return val & TCSR_LPASS_BIT;
-}
-
 static bool rcg_update_done(uint32_t val)
 {
 	return !(val & CMD_RCGR_UPDATE_BIT);
@@ -373,7 +363,6 @@ static TEE_Result cdsp_reset_processor(const struct cdsp_reset_regs *r)
 	vaddr_t aoss_cc = QCOM_IO_VA(AOSS_CC_BASE, AOSS_CC_SIZE);
 	vaddr_t gcc_base = QCOM_IO_VA(GCC_BASE, GCC_SIZE);
 	TEE_Result res = TEE_SUCCESS;
-	uint32_t val = 0;
 
 	if (!pub_base || !cc_base || !gcc_base || !aoss_cc || !pdc_global ||
 	    !pdc_status || !tcsr)
@@ -413,12 +402,9 @@ static TEE_Result cdsp_reset_processor(const struct cdsp_reset_regs *r)
 	/* If powered on and the master port is busy, halt mem-NoC traffic. */
 	if ((io_read32(tcsr + r->tcsr_pwr_on) & TCSR_TURING_BIT) &&
 	    !(io_read32(tcsr + r->tcsr_master_idle) & TCSR_TURING_BIT)) {
-		io_setbits32(tcsr + r->tcsr_haltreq, TCSR_TURING_BIT);
-
 		/* A QDSP6 in a bad state may never ack; reset it anyway. */
-		IO_READ32_POLL_TIMEOUT(tcsr + r->tcsr_haltack, val,
-				       turing_halt_acked(val), 5,
-				       CDSP_HALT_ACK_TIMEOUT_US);
+		qcom_q6_halt(tcsr + r->tcsr_haltreq, tcsr + r->tcsr_haltack,
+			     CDSP_HALT_ACK_TIMEOUT_US);
 	}
 
 	/* Assert the PDC reset, then pulse the subsystem restart. */
@@ -434,7 +420,7 @@ static TEE_Result cdsp_reset_processor(const struct cdsp_reset_regs *r)
 
 	/* De-assert the PDC reset and clear the halt request. */
 	io_clrbits32(pdc_global + RPMH_PDC_SYNC_RESET, r->pdc_sync_reset_bit);
-	io_clrbits32(tcsr + r->tcsr_haltreq, TCSR_TURING_BIT);
+	qcom_q6_halt_release(tcsr + r->tcsr_haltreq);
 	udelay(100);
 
 	return TEE_SUCCESS;
@@ -505,7 +491,6 @@ static TEE_Result gpdsp_reset_processor(const struct gpdsp_reset_regs *r)
 	vaddr_t aoss_cc = QCOM_IO_VA(AOSS_CC_BASE, AOSS_CC_SIZE);
 	vaddr_t gcc_base = QCOM_IO_VA(GCC_BASE, GCC_SIZE);
 	vaddr_t pub = base + TURINGGDSP_PUB_OFFSET;
-	uint32_t val = 0;
 
 	if (!base || !gcc_base || !aoss_cc || !pdc_global || !pdc_status ||
 	    !tcsr)
@@ -534,12 +519,10 @@ static TEE_Result gpdsp_reset_processor(const struct gpdsp_reset_regs *r)
 		      TCSR_TURING_BIT) ||
 		    !(io_read32(tcsr + r->tcsr_il1_master_idle) &
 		      TCSR_TURING_BIT)) {
-			io_setbits32(tcsr + r->tcsr_haltreq, TCSR_TURING_BIT);
-
 			/* A QDSP6 in a bad state may never ack. */
-			IO_READ32_POLL_TIMEOUT(tcsr + r->tcsr_haltack, val,
-					       turing_halt_acked(val), 5,
-					       GPDSP_HALT_ACK_TIMEOUT_US);
+			qcom_q6_halt(tcsr + r->tcsr_haltreq,
+				     tcsr + r->tcsr_haltack,
+				     GPDSP_HALT_ACK_TIMEOUT_US);
 		}
 	}
 
@@ -554,7 +537,7 @@ static TEE_Result gpdsp_reset_processor(const struct gpdsp_reset_regs *r)
 
 	/* De-assert the PDC reset and clear the halt request. */
 	io_clrbits32(pdc_global + RPMH_PDC_SYNC_RESET, r->pdc_sync_reset_bit);
-	io_clrbits32(tcsr + r->tcsr_haltreq, TCSR_TURING_BIT);
+	qcom_q6_halt_release(tcsr + r->tcsr_haltreq);
 	udelay(100);
 
 	return TEE_SUCCESS;
@@ -752,7 +735,6 @@ static TEE_Result lpass_reset_processor(void)
 	vaddr_t gcc_base = QCOM_IO_VA(GCC_BASE, GCC_SIZE);
 	vaddr_t sbm = lpass_base + LPASS_AG_NOC_SBM_OFFSET;
 	TEE_Result res = TEE_SUCCESS;
-	uint32_t val = 0;
 
 	if (!gcc_base || !lpass_base || !aoss_cc || !pdc_global ||
 	    !pdc_status || !tcsr)
@@ -773,11 +755,9 @@ static TEE_Result lpass_reset_processor(void)
 			return res;
 	}
 
-	io_setbits32(tcsr + TCSR_LPASS_HALTREQ, TCSR_LPASS_BIT);
 	/* A QDSP6 in a bad state may never ack; reset it anyway. */
-	IO_READ32_POLL_TIMEOUT(tcsr + TCSR_LPASS_HALTACK, val,
-			       lpass_halt_acked(val), 5,
-			       LPASS_HALT_ACK_TIMEOUT_US);
+	qcom_q6_halt(tcsr + TCSR_LPASS_HALTREQ, tcsr + TCSR_LPASS_HALTACK,
+		     LPASS_HALT_ACK_TIMEOUT_US);
 
 	io_setbits32(pdc_global + RPMH_PDC_SYNC_RESET,
 		     PDC_SYNC_RESET_AUDIO_BIT);
@@ -791,7 +771,7 @@ static TEE_Result lpass_reset_processor(void)
 	dsb();
 	udelay(200);
 
-	io_clrbits32(tcsr + TCSR_LPASS_HALTREQ, TCSR_LPASS_BIT);
+	qcom_q6_halt_release(tcsr + TCSR_LPASS_HALTREQ);
 	udelay(100);
 
 	io_write32(sbm + LPASS_AG_NOC_SBM_FLAGOUTSET0_LOW, 0);
