@@ -55,13 +55,10 @@ DEFINE_RESOURCE_TABLE(TURING, ARRAY_SIZE(turing_mem_res));
 static TEE_Result cdsp_fw_start(struct qcom_pas_data *data)
 {
 	const struct dsp_fw_start_regs regs = {
-		.boot_status = TURING_QDSP6V68SS_PUB_REG + 0x408,
-		.core_start = TURING_QDSP6V68SS_PUB_REG + 0x400,
 		.core_cbcr = TURING_QDSP6SS_Q6_CC_REG + 0x1040,
 		.sleep_cbcr = TURING_QDSP6V68SS_CC_REG + 0x58,
-		.boot_cmd = TURING_QDSP6V68SS_PUB_REG + 0x404,
-		.rst_evb = TURING_QDSP6V68SS_PUB_REG + 0x10,
 		.xo_cbcr = TURING_QDSP6V68SS_CC_REG + 0x54,
+		.qdsp6ss = TURING_QDSP6V68SS_PUB_REG,
 	};
 
 	return dsp_fw_start(data, &regs);

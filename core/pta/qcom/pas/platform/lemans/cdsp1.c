@@ -9,6 +9,7 @@
 #include <string.h>
 
 #include "cdsp1.h"
+#include "qdsp6ss.h"
 
 #define TURING_NSPAUX_XO_CBCR		0x02008040
 #define TURING_Q6SS_Q6_AXIM_CBCR	0x02008404
@@ -16,9 +17,7 @@
 
 #define TURING_QDSP6SS_CORE_CBCR	0x02348040
 
-#define TURING_QDSP6SS_RST_EVB		0x02300010
-#define TURING_QDSP6SS_BOOT_CMD		0x02300404
-#define TURING_QDSP6SS_BOOT_STATUS	0x02300408
+#define TURING_QDSP6SS			0x02300000
 
 static const struct fw_rsc_devmem turing_mem_res[] = {
 	{ .name = "gcc_gpll0_3", .flags = IOMMU_READ,
@@ -193,7 +192,6 @@ DEFINE_RESOURCE_TABLE(TURING1, ARRAY_SIZE(turing_mem_res));
 static TEE_Result cdsp1_fw_start(struct qcom_pas_data *data)
 {
 	vaddr_t base = io_pa_or_va(&data->base, data->size);
-	uint64_t timeout = timeout_init_us(BOOT_FSM_TIMEOUT);
 
 	/* QDSPV73SS out of reset sequence */
 	io_setbits32(base + TURING_QDSP6SS_CORE_CBCR, CBCR_BRANCH_ENABLE_BIT);
@@ -202,22 +200,13 @@ static TEE_Result cdsp1_fw_start(struct qcom_pas_data *data)
 	io_setbits32(base + TURING_NSPAUX_XO_CBCR, CBCR_BRANCH_ENABLE_BIT);
 
 	/* Program firmware */
-	io_write32(base + TURING_QDSP6SS_RST_EVB, data->fw_base >> 4);
+	io_write32(base + TURING_QDSP6SS + QDSP6SS_RST_EVB, data->fw_base >> 4);
 	dsb();
 
 	/* Trigger the boot FSM. The core itself is released later, after the
 	 * Q6 PLL is configured, by qcom_clock_enable_pas_processor().
 	 */
-	io_write32(base + TURING_QDSP6SS_BOOT_CMD, 0x1);
-
-	while (!timeout_elapsed(timeout)) {
-		if (io_read32(base + TURING_QDSP6SS_BOOT_STATUS) & BIT(0))
-			return TEE_SUCCESS;
-
-		udelay(10);
-	}
-
-	return TEE_ERROR_TIMEOUT;
+	return qdsp6ss_boot_fsm(base + TURING_QDSP6SS, BOOT_FSM_TIMEOUT);
 }
 
 static TEE_Result cdsp1_fw_shutdown(struct qcom_pas_data *data)

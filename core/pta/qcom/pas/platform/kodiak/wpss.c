@@ -25,13 +25,10 @@ DEFINE_RESOURCE_TABLE(WPSS, ARRAY_SIZE(wpss_mem_res));
 static TEE_Result wpss_fw_start(struct qcom_pas_data *data)
 {
 	static const struct dsp_fw_start_regs regs = {
-		.boot_status = WPSS_QDSP6V67SS_PUB_REG + 0x408,
-		.core_start = WPSS_QDSP6V67SS_PUB_REG + 0x400,
 		.sleep_cbcr = WPSS_QDSP6V67SS_PUB_REG + 0x3c,
 		.core_cbcr = WPSS_QDSP6V67SS_PUB_REG + 0x20,
-		.boot_cmd = WPSS_QDSP6V67SS_PUB_REG + 0x404,
-		.rst_evb = WPSS_QDSP6V67SS_PUB_REG + 0x10,
 		.xo_cbcr = WPSS_QDSP6V67SS_PUB_REG + 0x38,
+		.qdsp6ss = WPSS_QDSP6V67SS_PUB_REG,
 	};
 
 	return dsp_fw_start(data, &regs);
