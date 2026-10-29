@@ -21,6 +21,8 @@
  * the generic core (pas_core.c) returns the appropriate error in that case.
  *
  * @fw_start:     Program the firmware entry and run the boot FSM.
+ * @fw_release:   Release the core once qcom_clock_enable_pas_processor()
+ *                has its clocks running (QCOM_PAS_RESET_CLK_FULL only).
  * @fw_shutdown:  Put the processor back into reset.
  * @fw_set_state: Power the processor on (@on == true) or off.
  * @devmem:       Device memory regions of the firmware resource table, which
@@ -30,6 +32,7 @@
  */
 struct qcom_pas_ops {
 	TEE_Result (*fw_start)(struct qcom_pas_data *data);
+	TEE_Result (*fw_release)(struct qcom_pas_data *data);
 	TEE_Result (*fw_shutdown)(struct qcom_pas_data *data);
 	TEE_Result (*fw_set_state)(struct qcom_pas_data *data, bool on);
 	const struct fw_rsc_devmem *devmem;
@@ -42,8 +45,9 @@ struct qcom_pas_ops {
  *
  * @QCOM_PAS_RESET_NONE:       fw_start only; no clock management here.
  * @QCOM_PAS_RESET_CLK_ENABLE: qcom_clock_enable() then fw_start().
- * @QCOM_PAS_RESET_CLK_FULL:   qcom_clock_enable(), fw_start(), then
- *                             qcom_clock_enable_pas_processor().
+ * @QCOM_PAS_RESET_CLK_FULL:   qcom_clock_enable(), fw_start(),
+ *                             qcom_clock_enable_pas_processor(), then
+ *                             fw_release() if the subsystem has one.
  */
 enum qcom_pas_reset_seq {
 	QCOM_PAS_RESET_NONE = 0,

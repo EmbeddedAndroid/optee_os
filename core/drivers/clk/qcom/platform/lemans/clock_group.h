@@ -83,9 +83,6 @@
 #define TURINGNSP_Q6_PLL_OFFSET			0x02340000
 #define TURINGNSP_CORE_CC_OFFSET		0x02348000
 
-/* Offsets within the boot block (TURINGNSP_BOOT_OFFSET). */
-#define QDSP6SS_BOOT_CORE_START			0x400
-
 /* Offsets within the core clock-controller block (TURINGNSP_CORE_CC_OFFSET). */
 #define QDSP6SS_CORE_CMD_RCGR			0x20
 #define QDSP6SS_CORE_CFG_RCGR			0x24

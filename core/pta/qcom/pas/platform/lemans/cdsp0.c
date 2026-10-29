@@ -244,13 +244,24 @@ static TEE_Result cdsp0_fw_start(struct qcom_pas_data *data)
 	dsb();
 
 	/* Trigger the boot FSM. The core itself is released later, after the
-	 * Q6 PLL is configured, by qcom_clock_enable_pas_processor().
+	 * Q6 PLL is configured, by cdsp0_fw_release().
 	 */
 	return qdsp6ss_boot_fsm(base + TURING_QDSP6SS, BOOT_FSM_TIMEOUT);
 }
 
+/* The Q6 PLL must run before the core leaves reset. */
+static TEE_Result cdsp0_fw_release(struct qcom_pas_data *data)
+{
+	vaddr_t base = io_pa_or_va(&data->base, data->size);
+
+	qdsp6ss_core_start(base + TURING_QDSP6SS);
+
+	return TEE_SUCCESS;
+}
+
 const struct qcom_pas_ops cdsp0_ops = {
 	.fw_start = cdsp0_fw_start,
+	.fw_release = cdsp0_fw_release,
 	.fw_shutdown = qcom_pas_clk_reset_shutdown,
 	.devmem = turing_mem_res,
 	.devmem_num = ARRAY_SIZE(turing_mem_res),

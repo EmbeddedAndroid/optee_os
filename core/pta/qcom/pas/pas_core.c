@@ -233,6 +233,8 @@ TEE_Result pas_platform_auth_and_reset(uint32_t pas_id)
 			return res;
 
 		res = qcom_clock_enable_pas_processor(data->clk_group);
+		if (res == TEE_SUCCESS && subsys->ops->fw_release)
+			res = subsys->ops->fw_release(data);
 		break;
 	case QCOM_PAS_RESET_CLK_ENABLE:
 		res = qcom_clock_enable(data->clk_group);

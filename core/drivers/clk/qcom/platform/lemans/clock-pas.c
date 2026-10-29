@@ -130,9 +130,10 @@ static const struct qcom_lucidevo_pll_config q6_pll_cfg = {
 };
 
 /*
- * Bring the QDSP6 out of reset after the boot FSM completes: lock the Q6 PLL,
- * switch the core RCG onto it, then release the core. Runs after fw_start()
- * since the Q6 PLL registers must not be touched until the FSM is done.
+ * Clock the QDSP6 after the boot FSM completes: lock the Q6 PLL and switch the
+ * core RCG onto it; the PAS fw_release op then releases the core. Runs after
+ * fw_start() since the Q6 PLL registers must not be touched until the FSM is
+ * done.
  */
 static TEE_Result cdsp_enable_processor(paddr_t turing_base)
 {
@@ -151,16 +152,9 @@ static TEE_Result cdsp_enable_processor(paddr_t turing_base)
 	if (res != TEE_SUCCESS)
 		return res;
 
-	res = qcom_clock_set_rate(core_cc + QDSP6SS_CORE_CFG_RCGR,
-				  core_cc + QDSP6SS_CORE_CMD_RCGR,
-				  Q6RCG_CFG_VALUE);
-	if (res != TEE_SUCCESS)
-		return res;
-
-	/* Release the core only after the PLL has been initialised. */
-	io_setbits32(boot_base + QDSP6SS_BOOT_CORE_START, BIT(0));
-
-	return TEE_SUCCESS;
+	return qcom_clock_set_rate(core_cc + QDSP6SS_CORE_CFG_RCGR,
+				   core_cc + QDSP6SS_CORE_CMD_RCGR,
+				   Q6RCG_CFG_VALUE);
 }
 
 static const struct qcom_lucidevo_pll_config lpass_q6_pll_cfg = {
