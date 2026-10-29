@@ -248,14 +248,9 @@ static TEE_Result gpdsp1_fw_start(struct qcom_pas_data *data)
 	return qdsp6ss_boot_fsm(q6ss, BOOT_FSM_TIMEOUT);
 }
 
-static TEE_Result gpdsp1_fw_shutdown(struct qcom_pas_data *data)
-{
-	return qcom_clock_pas_reset(data->clk_group);
-}
-
 const struct qcom_pas_ops gpdsp1_ops = {
 	.fw_start = gpdsp1_fw_start,
-	.fw_shutdown = gpdsp1_fw_shutdown,
+	.fw_shutdown = qcom_pas_clk_reset_shutdown,
 	.devmem = turing_mem_res,
 	.devmem_num = ARRAY_SIZE(turing_mem_res),
 };

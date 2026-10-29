@@ -249,14 +249,9 @@ static TEE_Result lpass_fw_start(struct qcom_pas_data *data)
 	return qdsp6ss_boot_fsm(pub, BOOT_FSM_TIMEOUT);
 }
 
-static TEE_Result lpass_fw_shutdown(struct qcom_pas_data *data)
-{
-	return qcom_clock_pas_reset(data->clk_group);
-}
-
 const struct qcom_pas_ops lpass_ops = {
 	.fw_start = lpass_fw_start,
-	.fw_shutdown = lpass_fw_shutdown,
+	.fw_shutdown = qcom_pas_clk_reset_shutdown,
 	.devmem = lpass_mem_res,
 	.devmem_num = ARRAY_SIZE(lpass_mem_res),
 };

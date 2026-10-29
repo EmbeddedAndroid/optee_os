@@ -79,6 +79,15 @@ struct qcom_pas_subsys {
 struct qcom_pas_subsys *qcom_pas_platform_subsys(size_t *count);
 
 /*
+ * qcom_pas_clk_reset_shutdown() : fw_shutdown op for subsystems whose clock
+ * driver resets the processor in qcom_clock_pas_reset().
+ *
+ * @data: Subsystem data; @data->clk_group selects the reset sequence.
+ * Returns the qcom_clock_pas_reset() result.
+ */
+TEE_Result qcom_pas_clk_reset_shutdown(struct qcom_pas_data *data);
+
+/*
  * qcom_pas_lookup() : find the subsystem descriptor for @pas_id.
  *
  * @pas_id: PAS_ID of the subsystem to find.

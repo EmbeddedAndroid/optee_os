@@ -207,14 +207,9 @@ static TEE_Result cdsp1_fw_start(struct qcom_pas_data *data)
 	return qdsp6ss_boot_fsm(base + TURING_QDSP6SS, BOOT_FSM_TIMEOUT);
 }
 
-static TEE_Result cdsp1_fw_shutdown(struct qcom_pas_data *data)
-{
-	return qcom_clock_pas_reset(data->clk_group);
-}
-
 const struct qcom_pas_ops cdsp1_ops = {
 	.fw_start = cdsp1_fw_start,
-	.fw_shutdown = cdsp1_fw_shutdown,
+	.fw_shutdown = qcom_pas_clk_reset_shutdown,
 	.devmem = turing_mem_res,
 	.devmem_num = ARRAY_SIZE(turing_mem_res),
 };

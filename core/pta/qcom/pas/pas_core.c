@@ -256,6 +256,11 @@ TEE_Result pas_platform_auth_and_reset(uint32_t pas_id)
 	return res;
 }
 
+TEE_Result qcom_pas_clk_reset_shutdown(struct qcom_pas_data *data)
+{
+	return qcom_clock_pas_reset(data->clk_group);
+}
+
 TEE_Result pas_platform_shutdown(uint32_t pas_id)
 {
 	struct qcom_pas_subsys *subsys = qcom_pas_lookup(pas_id);
