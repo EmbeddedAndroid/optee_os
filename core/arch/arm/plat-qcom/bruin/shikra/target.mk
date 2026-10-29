@@ -16,3 +16,7 @@ CFG_QCOM_RPM_TRANSPORT_GLINK ?= y
 endif
 
 CFG_QCOM_TLMM ?= y
+
+ifneq ($(CFG_INSECURE),y)
+CFG_QCOM_QFPROM_FUSEPROV ?= y
+endif
