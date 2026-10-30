@@ -23,9 +23,11 @@ CFG_DRIVERS_QCOM_CLK ?= y
 
 CFG_QCOM_PAS_PTA ?= y
 
-# The ADSP and the CDSP can be left out of the PAS pseudo-TA one by one.
+# The ADSP, the CDSP and the iris video codec can be left out of the PAS
+# pseudo-TA one by one.
 CFG_QCOM_PAS_ADSP ?= y
 CFG_QCOM_PAS_CDSP ?= y
+CFG_QCOM_PAS_IRIS ?= y
 
 ifeq ($(CFG_QCOM_PAS_PTA),y)
 CFG_IN_TREE_EARLY_TAS += qcom_pas/cff7d191-7ca0-4784-af13-48223b9a4fbe
