@@ -236,6 +236,7 @@ jobs:
               _make PLATFORM=qcom-cacao
               _make PLATFORM=qcom-lanai
               _make PLATFORM=qcom-kailua
+              _make PLATFORM=qcom-eliza
           - name: arm rockchip
             make_commands: |
               _make PLATFORM=rockchip-px30
