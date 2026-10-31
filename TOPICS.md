@@ -13,6 +13,9 @@ refresh: tag qcom/integration-20261024.
 Added 2026-10-26: qcom/kailua (SM8550 HDK), merged on top of the gated
 refresh; the state before it is tag qcom/integration-20261025.
 
+Added 2026-10-31: qcom/eliza (SM7750 MTP), merged on top of the
+2026-10-26 state (tag qcom/integration-20261026).
+
 ## Platform branches
 
 | platform | branch | on | carries | upstream status |
@@ -25,6 +28,7 @@ refresh; the state before it is tag qcom/integration-20261025.
 | lanai | qcom/lanai | base | SM8650 | not submitted |
 | kailua | qcom/kailua | lanai | SM8550 | not submitted |
 | shikra | qcom/shikra | base | PR 8107 head 64501d96e, PR 8122 head bd53e42c3, PR 8134 head 21fffcf6d | open (7926/8105 merged in the base) |
+| eliza | qcom/eliza | base | SM7750 on the Wildcat layer: platform, PAS clocks, CDSP, ADSP and iris PAS, CI build | not submitted |
 
 ## Per-patch submission map
 
@@ -149,6 +153,23 @@ Each commit of a platform branch (from its parent: the base or the branch it bui
 | e34bccb9bec9 | plat-qcom: wildcat: add Kailua (SM8550) | Tyler Baker | not submitted |  |
 | b39dc9544e5a | ci: qcom: add kailua platform build | Tyler Baker | not submitted |  |
 
+### qcom/eliza (on the base)
+
+| commit | subject | author | submission | note |
+|---|---|---|---|---|
+| 0e7ea3887fa6 | plat-qcom: wildcat: add Eliza (SM7750) | Tyler Baker | not submitted |  |
+| 1661765f72af | clk: qcom: eliza: add PAS clock support | Tyler Baker | not submitted |  |
+| f19c344f1bc0 | pta: qcom: pas: add the ADSP DTB PAS ID | Tyler Baker | not submitted |  |
+| e680483289db | pta: qcom: pas: eliza: add CDSP bring-up and shutdown | Tyler Baker | not submitted |  |
+| 0d16a9bc4ae0 | pta: qcom: pas: eliza: add ADSP bring-up and shutdown | Tyler Baker | not submitted |  |
+| 384220270a5c | plat-qcom: wildcat: eliza: enable the PAS pseudo-TA | Tyler Baker | not submitted |  |
+| f34d0b3fb15c | ci: qcom: add eliza platform build | Tyler Baker | not submitted |  |
+| b34c1c3e6b56 | pta: qcom: pas: pass image metadata to the subsystem | Tyler Baker | not submitted | superseded in the merge by the integration PAS core |
+| ec305ed735d6 | pta: qcom: pas: move ELF segment selection to a header | Tyler Baker | not submitted | superseded in the merge by the integration pas_elf.c |
+| ed30368d6e47 | pta: qcom: pas: add video firmware seed helpers | Tyler Baker | not submitted | superseded in the merge by the integration pas_video.c |
+| f777efc56c4f | pta: qcom: pas: eliza: add iris bring-up and shutdown | Tyler Baker | not submitted | adapted in the merge to the integration op signature |
+| 974b70e7d27e | plat-qcom: wildcat: eliza: enable the iris PAS support | Tyler Baker | not submitted |  |
+
 ## In-flight submissions not carried
 
 - PR 8142 (plat-qcom families under arch/): tree-wide move, not a platform submission.
@@ -175,3 +196,4 @@ job cannot reach it). Jobs: https://lava.infra.foundries.io/scheduler/job/<id>.
 | shikra | public | QCDFP-261025-91 | 512770 | U-Boot only (Shikra v4) on the stock XBL/QSEE/Gunyah health image: FP, Linux, login and the health smoke tests pass as health job 511579; no upstream TF-A/OP-TEE boot path yet |
 | lanai | public |  |  | untested: no LAVA board |
 | kailua | public |  |  | untested: no board yet (lab access pending) |
+| eliza | public | QCDFP-261031-408 | MTP, no LAVA board | BOARD-REQUEST-3: TF-A/OP-TEE/U-Boot FP, U-Boot UFS clock lines gone, UFS, fastboot, GPU, NPU, CPU hotplug pass (BOARD-REQUEST-1 on 401 passed the same steps) |
