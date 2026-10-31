@@ -20,8 +20,10 @@
 
 /*
  * Peripherals the ADSP reaches through its SMMU stream, identity mapped: the
- * SM7750 "ADSP Q6 ELF" stage-2 aperture, plus SMEM and the LLCC LPI region
- * the ADSP island (uImage) runs from.
+ * SM7750 "ADSP Q6 ELF" stage-2 aperture, plus SMEM, the LLCC LPI region
+ * the ADSP island (uImage) runs from, and the PMIC arbiter channels and
+ * QUPv3 serial engines (1 SE4, 2 SE4) the ADSP firmware uses but the
+ * aperture does not list.
  */
 static const struct fw_rsc_devmem lpass_mem_res[] = {
 	{ .name = "gcc_pll", .flags = IOMMU_READ,
@@ -64,6 +66,10 @@ static const struct fw_rsc_devmem lpass_mem_res[] = {
 		.da = 0x00501000, .pa = 0x00501000, .len = 0x00001000, },
 	{ .name = "ipc_config", .flags = IOMMU_READ,
 		.da = 0x005fc000, .pa = 0x005fc000, .len = 0x00001000, },
+	{ .name = "qupv3_2_se4", .flags = IOMMU_READ | IOMMU_WRITE,
+		.da = 0x00890000, .pa = 0x00890000, .len = 0x00004000, },
+	{ .name = "qupv3_1_se4", .flags = IOMMU_READ | IOMMU_WRITE,
+		.da = 0x00a90000, .pa = 0x00a90000, .len = 0x00004000, },
 	{ .name = "rng_cm_cm_prng_cm", .flags = IOMMU_READ,
 		.da = 0x010c0000, .pa = 0x010c0000, .len = 0x00001000, },
 	{ .name = "rng_ee4_ee4_prng_sub", .flags = IOMMU_READ,
@@ -154,6 +160,8 @@ static const struct fw_rsc_devmem lpass_mem_res[] = {
 		.da = 0x0c440000, .pa = 0x0c440000, .len = 0x00080000, },
 	{ .name = "spmi0_spmi_pic_owner", .flags = IOMMU_READ,
 		.da = 0x0c4c0000, .pa = 0x0c4c0000, .len = 0x00020000, },
+	{ .name = "pmic_arb_chnls", .flags = IOMMU_READ | IOMMU_WRITE,
+		.da = 0x0c500000, .pa = 0x0c500000, .len = 0x00400000, },
 	{ .name = "tlmm", .flags = IOMMU_READ | IOMMU_WRITE,
 		.da = 0x0f000000, .pa = 0x0f000000, .len = 0x01000000, },
 	{ .name = "qdss_csr", .flags = IOMMU_READ | IOMMU_WRITE,
