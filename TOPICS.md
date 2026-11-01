@@ -16,6 +16,9 @@ refresh; the state before it is tag qcom/integration-20261025.
 Added 2026-10-31: qcom/eliza (SM7750 MTP), merged on top of the
 2026-10-26 state (tag qcom/integration-20261026).
 
+Added 2026-11-01: the SM7750 ADSP resource table regions on
+qcom/eliza.
+
 ## Platform branches
 
 | platform | branch | on | carries | upstream status |
@@ -169,6 +172,7 @@ Each commit of a platform branch (from its parent: the base or the branch it bui
 | ed30368d6e47 | pta: qcom: pas: add video firmware seed helpers | Tyler Baker | not submitted | superseded in the merge by the integration pas_video.c |
 | f777efc56c4f | pta: qcom: pas: eliza: add iris bring-up and shutdown | Tyler Baker | not submitted | adapted in the merge to the integration op signature |
 | 974b70e7d27e | plat-qcom: wildcat: eliza: enable the iris PAS support | Tyler Baker | not submitted |  |
+| 4e61677becf8 | pta: qcom: pas: eliza: map the PMIC arbiter and ADSP QUP engines | Tyler Baker | not submitted |  |
 
 ## In-flight submissions not carried
 
@@ -197,3 +201,4 @@ job cannot reach it). Jobs: https://lava.infra.foundries.io/scheduler/job/<id>.
 | lanai | public |  |  | untested: no LAVA board |
 | kailua | public |  |  | untested: no board yet (lab access pending) |
 | eliza | public | QCDFP-261031-408 | MTP, no LAVA board | BOARD-REQUEST-3: TF-A/OP-TEE/U-Boot FP, U-Boot UFS clock lines gone, UFS, fastboot, GPU, NPU, CPU hotplug pass (BOARD-REQUEST-1 on 401 passed the same steps) |
+| eliza | public | QCDFP-261031-423 | MTP, no LAVA board | BOARD-REQUEST-2: ADSP running with the Linux DT island stream and QUPv3 1 firmware-name; BOARD-REQUEST-3: eliza-mtp sound card, both speakers and DMICs (microphone loopback); BOARD-REQUEST-4 to 6: one ADSP SMMU fault per OP-TEE resource table region left out |
