@@ -9,6 +9,7 @@
 #include <util.h>
 
 #include "cdsp.h"
+#include "iris.h"
 #include "lpass.h"
 #include "pas_subsys.h"
 
@@ -67,6 +68,18 @@ static struct qcom_pas_subsys subsystems[] = {
 		},
 		.ops = &cdsp_ops,
 		.reset_seq = QCOM_PAS_RESET_CLK_FULL,
+	},
+	/* Linux owns the video clocks and powers the core before each call */
+	{
+		.data = {
+			.pas_id = PAS_ID_IRIS,
+			.base.pa = IRIS_BASE,
+			.size = IRIS_SIZE,
+			.map_type = MEM_AREA_IO_NSEC,
+			.iris = &iris_cfg,
+		},
+		.ops = &pas_iris_ops,
+		.reset_seq = QCOM_PAS_RESET_NONE,
 	},
 };
 
