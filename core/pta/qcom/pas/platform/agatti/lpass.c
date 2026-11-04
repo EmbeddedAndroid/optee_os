@@ -4,24 +4,20 @@
  */
 
 #include <io.h>
-#include <kernel/delay.h>
 #include <platform_config.h>
 #include <resource_table.h>
 #include <stdint.h>
 #include <string.h>
 
 #include "lpass.h"
+#include "pas_q6ss.h"
 
 /* Relative to LPASS_BASE */
-#define LPASS_QDSP6SS_BOOT_CORE_START	0x400400
-#define LPASS_QDSP6SS_BOOT_CMD		0x400404
-#define LPASS_QDSP6SS_BOOT_STATUS	0x400408
+#define LPASS_QDSP6SS			0x400000
 #define LPASS_EFUSE_Q6SS_EVB_SEL	0x95b000
 #define LPASS_EFUSE_Q6SS_EVB_ADDR	0x95b004
 
 #define EVB_ADDR_MASK			GENMASK_32(27, 4)
-
-#define BOOT_FSM_TIMEOUT_US		1000000
 
 /*
  * Peripherals the ADSP reaches through its SMMU stream, identity mapped:
@@ -170,7 +166,6 @@ DEFINE_RESOURCE_TABLE(LPASS, ARRAY_SIZE(lpass_mem_res));
 static TEE_Result lpass_fw_start(struct qcom_pas_data *data)
 {
 	vaddr_t base = io_pa_or_va(&data->base, data->size);
-	uint64_t timeout = 0;
 
 	if (!base)
 		return TEE_ERROR_GENERIC;
@@ -182,19 +177,7 @@ static TEE_Result lpass_fw_start(struct qcom_pas_data *data)
 		   (data->fw_base >> 4) & EVB_ADDR_MASK);
 	dsb();
 
-	io_setbits32(base + LPASS_QDSP6SS_BOOT_CORE_START, BIT(0));
-	io_write32(base + LPASS_QDSP6SS_BOOT_CMD, BIT(0));
-
-	timeout = timeout_init_us(BOOT_FSM_TIMEOUT_US);
-	while (!(io_read32(base + LPASS_QDSP6SS_BOOT_STATUS) & BIT(0))) {
-		if (timeout_elapsed(timeout)) {
-			EMSG("ADSP boot FSM timed out");
-			return TEE_ERROR_TIMEOUT;
-		}
-		udelay(5);
-	}
-
-	return TEE_SUCCESS;
+	return pas_q6ss_boot(base + LPASS_QDSP6SS, true);
 }
 
 static TEE_Result lpass_fw_shutdown(struct qcom_pas_data *data)
