@@ -76,6 +76,8 @@ struct pas_iris_seq {
  *
  * @after_clear:      platform writes after the overrides are cleared
  * @after_thresholds: platform writes before the non-VCL thresholds
+ * @non_vcl:          platform non-VCL thresholds, written instead of the
+ *                    default ones when not empty
  * @before_checks:    platform writes before the stream ID 0x1 and 0x7
  *                    overrides
  * @after_checks:     platform writes after them
@@ -85,6 +87,7 @@ struct pas_iris_seq {
 struct pas_iris_cfg {
 	struct pas_iris_seq after_clear;
 	struct pas_iris_seq after_thresholds;
+	struct pas_iris_seq non_vcl;
 	struct pas_iris_seq before_checks;
 	struct pas_iris_seq after_checks;
 	bool every_release;
