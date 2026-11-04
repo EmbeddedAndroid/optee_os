@@ -58,6 +58,19 @@ struct qcom_lucidevo_pll_offsets {
 	uint32_t config_ctl_u1;
 };
 
+/* Register offsets of the Lucid-EVO and Lucid-OLE Q6 PLLs */
+#define QCOM_LUCIDEVO_PLL_OFFSETS { \
+	.mode = 0x0, \
+	.opmode = 0x4, \
+	.l_val = 0x10, \
+	.alpha_val = 0x14, \
+	.user_ctl = 0x18, \
+	.user_ctl_u = 0x1c, \
+	.config_ctl = 0x20, \
+	.config_ctl_u = 0x24, \
+	.config_ctl_u1 = 0x28, \
+}
+
 /* Register configuration for a Lucid-EVO PLL. */
 struct qcom_lucidevo_pll_config {
 	const struct qcom_lucidevo_pll_offsets *offsets;
