@@ -119,12 +119,15 @@ static TEE_Result iris_write_seq(vaddr_t base, const struct pas_iris_seq *seq)
 static TEE_Result iris_program_sec_session(vaddr_t base,
 					   const struct pas_iris_cfg *cfg)
 {
+	const struct pas_iris_seq non_vcl = {
+		sec_non_vcl_thresholds, ARRAY_SIZE(sec_non_vcl_thresholds)
+	};
 	const struct pas_iris_seq seqs[] = {
 		{ sec_clear, ARRAY_SIZE(sec_clear) },
 		cfg->after_clear,
 		{ sec_thresholds, ARRAY_SIZE(sec_thresholds) },
 		cfg->after_thresholds,
-		{ sec_non_vcl_thresholds, ARRAY_SIZE(sec_non_vcl_thresholds) },
+		cfg->non_vcl.count ? cfg->non_vcl : non_vcl,
 		cfg->before_checks,
 		{ sec_checks, ARRAY_SIZE(sec_checks) },
 		cfg->after_checks,
