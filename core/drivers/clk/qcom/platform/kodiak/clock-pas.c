@@ -7,6 +7,7 @@
 #include <drivers/clk.h>
 #include <drivers/clk_qcom.h>
 #include <io.h>
+#include <kernel/delay.h>
 #include <malloc.h>
 #include <mm/core_memprot.h>
 #include <mm/core_mmu.h>
@@ -15,6 +16,13 @@
 #include <trace.h>
 
 #include "clock_group.h"
+
+register_phys_mem(MEM_AREA_IO_NSEC, AOSS_CC_BASE, AOSS_CC_SIZE);
+register_phys_mem(MEM_AREA_IO_NSEC, RPMH_PDC_GLOBAL_BASE, RPMH_PDC_GLOBAL_SIZE);
+register_phys_mem(MEM_AREA_IO_NSEC, TCSR_MUTEX_BASE, TCSR_MUTEX_SIZE);
+
+/* A QDSP6 in a bad state may never acknowledge a halt request. */
+#define HALT_ACK_TIMEOUT_US			1000000
 
 static inline bool vapss_gdscr_pwr_on(uint32_t val)
 {
@@ -122,10 +130,143 @@ TEE_Result qcom_clock_enable_pas_processor(enum qcom_clk_group group __unused)
 	return TEE_SUCCESS;
 }
 
-TEE_Result qcom_clock_pas_reset(enum qcom_clk_group group __unused)
+/*
+ * Halt the bus master ports of a powered QDSP6 that is not idle, so that a
+ * subsystem restart does not cut off its transactions; @halt is the TCSR
+ * halt block of the subsystem.
+ */
+static void halt_q6_master(vaddr_t halt, uint32_t pwr_on)
 {
-	/* The PTA fw_start path brings the DSP up from a known state. */
+	uint64_t timeout = 0;
+
+	if (!(io_read32(halt + pwr_on) & TCSR_HALT_BIT) ||
+	    (io_read32(halt + TCSR_MASTER_IDLE) & TCSR_HALT_BIT))
+		return;
+
+	io_setbits32(halt + TCSR_HALTREQ, TCSR_HALT_BIT);
+
+	timeout = timeout_init_us(HALT_ACK_TIMEOUT_US);
+	while (!(io_read32(halt + TCSR_HALTACK) & TCSR_HALT_BIT)) {
+		if (timeout_elapsed(timeout)) {
+			EMSG("QDSP6 halt not acknowledged");
+			return;
+		}
+		udelay(5);
+	}
+}
+
+/*
+ * Put LPASS through a subsystem restart (AOSS_CC_LPASS_RESTART and the audio
+ * PDC sync reset), so that a stopped or crashed ADSP boots again from reset.
+ */
+static TEE_Result lpass_reset_processor(void)
+{
+	struct io_pa_va gcc_io = { .pa = GCC_BASE };
+	vaddr_t gcc_base = io_pa_or_va(&gcc_io, GCC_SIZE);
+	struct io_pa_va lpass_io = { .pa = LPASS_BASE };
+	vaddr_t lpass_base = io_pa_or_va(&lpass_io, LPASS_SIZE);
+	struct io_pa_va aoss_io = { .pa = AOSS_CC_BASE };
+	vaddr_t aoss_cc = io_pa_or_va(&aoss_io, AOSS_CC_SIZE);
+	struct io_pa_va pdc_io = { .pa = RPMH_PDC_GLOBAL_BASE };
+	vaddr_t pdc = io_pa_or_va(&pdc_io, RPMH_PDC_GLOBAL_SIZE);
+	struct io_pa_va tcsr_io = { .pa = TCSR_MUTEX_BASE };
+	vaddr_t tcsr = io_pa_or_va(&tcsr_io, TCSR_MUTEX_SIZE);
+	TEE_Result res = TEE_SUCCESS;
+
+	if (!gcc_base || !lpass_base || !aoss_cc || !pdc || !tcsr)
+		return TEE_ERROR_GENERIC;
+
+	/* The QDSP6SS registers are reachable only with this branch on */
+	res = qcom_clock_enable_cbc(gcc_base + GCC_CFG_NOC_LPASS_CLK);
+	if (res)
+		return res;
+
+	/* Reset the retention flops with the core */
+	io_setbits32(lpass_base + LPASS_QDSP6SS_OFFSET + QDSP6SS_RET_CFG,
+		     QDSP6SS_RET_CFG_RET_ARES_ENA_BIT);
+
+	halt_q6_master(tcsr + TCSR_LPASS_HALT, TCSR_LPASS_PWR_ON);
+
+	io_setbits32(pdc + RPMH_PDC_SYNC_RESET, PDC_SYNC_RESET_AUDIO_BIT);
+	io_setbits32(aoss_cc + AOSS_CC_LPASS_RESTART, AOSS_CC_SS_RESTART_BIT);
+	dsb();
+	udelay(200);
+
+	io_clrbits32(pdc + RPMH_PDC_SYNC_RESET, PDC_SYNC_RESET_AUDIO_BIT);
+	io_clrbits32(aoss_cc + AOSS_CC_LPASS_RESTART, AOSS_CC_SS_RESTART_BIT);
+	dsb();
+	udelay(200);
+
+	io_clrbits32(tcsr + TCSR_LPASS_HALT + TCSR_HALTREQ, TCSR_HALT_BIT);
+	mdelay(10);
+
 	return TEE_SUCCESS;
+}
+
+/*
+ * Put the Turing subsystem through a restart (AOSS_CC_COMPUTESS_RESTART and
+ * the compute PDC sync reset), so that a stopped or crashed CDSP boots again
+ * from reset.
+ */
+static TEE_Result cdsp_reset_processor(void)
+{
+	struct io_pa_va gcc_io = { .pa = GCC_BASE };
+	vaddr_t gcc_base = io_pa_or_va(&gcc_io, GCC_SIZE);
+	struct io_pa_va turing_io = { .pa = TURING_BASE };
+	vaddr_t turing_base = io_pa_or_va(&turing_io, TURING_SIZE);
+	struct io_pa_va aoss_io = { .pa = AOSS_CC_BASE };
+	vaddr_t aoss_cc = io_pa_or_va(&aoss_io, AOSS_CC_SIZE);
+	struct io_pa_va pdc_io = { .pa = RPMH_PDC_GLOBAL_BASE };
+	vaddr_t pdc = io_pa_or_va(&pdc_io, RPMH_PDC_GLOBAL_SIZE);
+	struct io_pa_va tcsr_io = { .pa = TCSR_MUTEX_BASE };
+	vaddr_t tcsr = io_pa_or_va(&tcsr_io, TCSR_MUTEX_SIZE);
+	TEE_Result res = TEE_SUCCESS;
+
+	if (!gcc_base || !turing_base || !aoss_cc || !pdc || !tcsr)
+		return TEE_ERROR_GENERIC;
+
+	/* The QDSP6SS registers are reachable only with this branch on */
+	res = qcom_clock_enable_cbc(gcc_base + GCC_TURING_CFG_AHB_CLK);
+	if (res)
+		return res;
+
+	/* Reset the retention flops with the core */
+	io_setbits32(turing_base + TURING_QDSP6SS_OFFSET + QDSP6SS_RET_CFG,
+		     QDSP6SS_RET_CFG_RET_ARES_ENA_BIT);
+
+	/* Disconnect the SWAY NIU socket to stop config NoC traffic */
+	io_clrbits32(gcc_base + GCC_TURING_CFG_AHB_CLK, CBCR_BRANCH_ENABLE_BIT);
+
+	halt_q6_master(tcsr + TCSR_TURING_HALT, TCSR_TURING_PWR_ON);
+
+	io_setbits32(pdc + RPMH_PDC_SYNC_RESET, PDC_SYNC_RESET_COMPUTE_BIT);
+	io_setbits32(aoss_cc + AOSS_CC_COMPUTESS_RESTART,
+		     AOSS_CC_SS_RESTART_BIT);
+	dsb();
+	udelay(200);
+
+	io_clrbits32(tcsr + TCSR_TURING_HALT + TCSR_HALTREQ, TCSR_HALT_BIT);
+	mdelay(10);
+
+	io_clrbits32(pdc + RPMH_PDC_SYNC_RESET, PDC_SYNC_RESET_COMPUTE_BIT);
+	io_clrbits32(aoss_cc + AOSS_CC_COMPUTESS_RESTART,
+		     AOSS_CC_SS_RESTART_BIT);
+	dsb();
+	udelay(200);
+
+	return TEE_SUCCESS;
+}
+
+TEE_Result qcom_clock_pas_reset(enum qcom_clk_group group)
+{
+	switch (group) {
+	case QCOM_CLKS_LPASS:
+		return lpass_reset_processor();
+	case QCOM_CLKS_TURING:
+		return cdsp_reset_processor();
+	default:
+		return TEE_ERROR_NOT_SUPPORTED;
+	}
 }
 
 TEE_Result qcom_clock_enable_pas(enum qcom_clk_group group)

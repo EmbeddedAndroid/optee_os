@@ -1,11 +1,19 @@
 CFG_TA_RAM_VA_SIZE ?= 0x1c00000
 
+$(call force,CFG_QCOM_EMBED_DTB,y)
+QCOM_DTS_FILE ?= qcom/lemans-evk.dts
+
 CFG_DRIVERS_CLK ?= y
 CFG_DRIVERS_QCOM_CLK ?= y
 
 CFG_QCOM_TLMM ?= y
 
 CFG_QCOM_DIAG_LOG ?= $(CFG_TEE_CORE_DEBUG)
+CFG_QCOM_GENI_SPI ?= y
+ifeq ($(CFG_QCOM_GENI_SPI),y)
+$(call force,CFG_QCOM_CMD_DB,y)
+$(call force,CFG_QCOM_RPMH_CLIENT,y)
+endif
 
 ifneq ($(CFG_INSECURE),y)
 CFG_QCOM_QFPROM_FUSEPROV ?= y
