@@ -7,9 +7,10 @@ incdirs-$(CFG_QCOM_CLK_HOYA_PAS) += hoya
 subdirs-$(CFG_QCOM_CLK_HOYA_PAS) += hoya
 
 ifeq ($(CFG_QCOM_CLK_CFG),y)
-srcs-y += platform/$(PLATFORM_FLAVOR)/clk_cfg.c
-srcs-y += clk_ops.c
-srcs-$(CFG_QCOM_RPMH_CLIENT) += rail_rpmh.c
+	srcs-y += platform/$(PLATFORM_FLAVOR)/clk_cfg.c
+	srcs-y += clk_ops.c
+	srcs-$(CFG_QCOM_RPMH_CLIENT) += rail_rpmh.c
+	srcs-$(CFG_QCOM_RPM_CLIENT) += rail_rpm.c
 endif
 
 incdirs-y += .
