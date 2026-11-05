@@ -17,6 +17,7 @@
 #define CFG_SEC_ELF_DDR_SIZE		UL(0x1000)
 
 #define GENI_UART_REG_BASE		UL(0xa8c000)
+#define QCOM_RNG_REG_BASE		UL(0x010D1000)
 
 /* IMEM and Diagnostic buffer */
 #define IMEM_BASE			UL(0x14680000)
