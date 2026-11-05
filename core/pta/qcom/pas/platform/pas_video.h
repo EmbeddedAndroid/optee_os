@@ -15,11 +15,11 @@
 /*
  * struct pas_video_seed : seed segment of a video firmware image.
  *
- * A Qualcomm video firmware image describes its seed with its last program
- * header: a loadable image segment of at most one page that the image fills
- * with a placeholder. The secure side fills it with random data after the
- * image is loaded and before the core starts. An image whose last program
- * header is not an image segment has no seed.
+ * A Qualcomm video firmware image describes its seed with its last loaded
+ * image segment: at most one page that the image fills with a placeholder.
+ * The secure side fills it with random data after the image is loaded and
+ * before the core starts. An image without a loaded image segment has no
+ * seed.
  *
  * The seed belongs to one image: pas_video_find_seed() sets it from that
  * image's metadata and pas_video_fill_seed() consumes it, so a later start
