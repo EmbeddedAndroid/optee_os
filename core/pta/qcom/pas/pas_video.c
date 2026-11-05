@@ -109,13 +109,16 @@ TEE_Result pas_video_find_seed(const void *metadata, size_t size,
 	    ADD_OVERFLOW(len, phoff, &len) || len > size)
 		return TEE_ERROR_BAD_FORMAT;
 
-	/* Segments are placed relative to the lowest one */
+	/*
+	 * Segments are placed relative to the lowest one. The seed is the
+	 * last loaded segment: some images end with the hash segment.
+	 */
 	for (n = 0; n < phnum; n++) {
 		get_seg(md + phoff + n * phentsize, is_64, &seg);
-		if (seg_is_loaded(&seg))
+		if (seg_is_loaded(&seg)) {
 			base = MIN(base, seg.paddr);
-		if (n == phnum - 1)
 			last = seg;
+		}
 	}
 
 	if (seg_is_loaded(&last)) {
