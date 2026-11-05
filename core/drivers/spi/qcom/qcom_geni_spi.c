@@ -863,9 +863,9 @@ static enum spi_result qup_spi_txrx(struct qup_spi_data *qs,
 	qs->rx_rem_bytes = rdat ? total_bytes : 0;
 	qs->bytes_per_word = bytes_per_word;
 
-	uint32_t cmd = (wdat ? SPI_TX_ONLY : 0) | (rdat ? SPI_RX_ONLY : 0);
+	geni_setup_m_cmd(qs, (wdat ? SPI_TX_ONLY : 0) |
+			     (rdat ? SPI_RX_ONLY : 0), 0);
 
-	geni_setup_m_cmd(qs, cmd, 0);
 	if (qs->tx_rem_bytes) {
 		io_write32(qs->base + SE_GENI_TX_WATERMARK_REG, 1);
 		qup_spi_fifo_fill_tx(qs);

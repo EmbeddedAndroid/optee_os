@@ -38,7 +38,7 @@ struct qup_spi_data {
 	/* SE source clock handle, acquired by qup_spi_init() */
 	struct clk *se_clk;
 	/* NULL-terminated array of wrapper/common clock names */
-	const char **common_clocks_name;
+	const char * const *common_clocks_name;
 	/* Resolved wrapper/common clock handles, acquired by qup_spi_init() */
 	struct clk *common_clks[QUP_SPI_MAX_COMMON_CLKS];
 	/* Number of entries populated in common_clks[] */
@@ -138,7 +138,7 @@ struct qup_spi_platform_cfg {
 	size_t itr_num;
 	unsigned int clk_hz;
 	const char *se_clock_name;
-	const char **common_clocks_name;
+	const char * const *common_clocks_name;
 	/*
 	 * TLMM pin groups muxing this SE's MISO/MOSI/CLK/CS pads to the
 	 * SPI function. Pins that share one config are one group; pins that
