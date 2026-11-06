@@ -14,6 +14,12 @@ CFG_TZDRAM_START ?= 0xf7c00000
 CFG_TEE_RAM_VA_SIZE ?= 0x00200000
 CFG_TA_RAM_VA_SIZE ?= 0x01c00000
 
+# Late mappings (core_mmu_add_mapping()) take whole 2 MiB blocks of the
+# reserved VA space, which only gives back the most recent one: the RNG,
+# SMEM, the iris registers and the transient iris firmware seed need
+# 10 MiB, and with the S-EL1 SPMC the manifest DT block is lost as well.
+CFG_RESERVED_VASPACE_SIZE ?= (32 * 1024 * 1024)
+
 # Seed the PRNG from the TZ PRNG instead of the system counter.
 $(call force,CFG_QCOM_CSRNG,y)
 $(call force,CFG_WITH_SOFTWARE_PRNG,n)
