@@ -244,9 +244,30 @@ TEE_Result mobj_ffa_unregister_by_cookie(uint64_t cookie);
 #ifdef CFG_CORE_SEL1_SPMC
 struct mobj_ffa *mobj_ffa_sel1_spmc_new(uint64_t cookie,
 					unsigned int num_pages,
-					enum mobj_use_case use_case);
+					enum mobj_use_case use_case,
+					uint16_t sender_id);
 void mobj_ffa_sel1_spmc_delete(struct mobj_ffa *mobj);
 TEE_Result mobj_ffa_sel1_spmc_reclaim(uint64_t cookie);
+
+struct ffa_address_range;
+
+/*
+ * mobj_ffa_sel1_spmc_get_ranges() - Get the constituents of a memory
+ * transaction
+ * @cookie:		Handle of the shared or lent memory
+ * @ranges:		Address ranges, contiguous pages merged into one range
+ * @range_count:	In: number of entries in @ranges, out: number needed
+ * @page_count:		Total number of pages
+ * @sender_id:		Endpoint ID of the owner of the memory
+ *
+ * Returns TEE_ERROR_ITEM_NOT_FOUND if @cookie is unknown and
+ * TEE_ERROR_SHORT_BUFFER if @ranges is too small.
+ */
+TEE_Result mobj_ffa_sel1_spmc_get_ranges(uint64_t cookie,
+					 struct ffa_address_range *ranges,
+					 size_t *range_count,
+					 unsigned int *page_count,
+					 uint16_t *sender_id);
 #else
 struct mobj_ffa *mobj_ffa_spmc_new(uint64_t cookie, unsigned int num_pages,
 				   enum mobj_use_case use_case);
