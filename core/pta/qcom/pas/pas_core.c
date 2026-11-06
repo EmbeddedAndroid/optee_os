@@ -11,6 +11,7 @@
 #include <trace.h>
 #include <util.h>
 
+#include "pas_fw_smmu.h"
 #include "pas_subsys.h"
 
 struct qcom_pas_subsys *qcom_pas_lookup(uint32_t pas_id)
@@ -199,6 +200,10 @@ TEE_Result pas_platform_get_resource_table(uint32_t pas_id,
 	if (!subsys || !subsys->ops->get_resource_table)
 		return TEE_ERROR_NOT_SUPPORTED;
 
+	/* The windows go to the firmware stage 2 only, never to the host */
+	if (IS_ENABLED(CFG_QCOM_PAS_FW_SMMU) && pas_fw_smmu_owns(pas_id))
+		return TEE_ERROR_ACCESS_DENIED;
+
 	return subsys->ops->get_resource_table(rt, size);
 }
 
@@ -271,6 +276,12 @@ TEE_Result pas_platform_auth_and_reset(uint32_t pas_id)
 		return TEE_ERROR_BAD_STATE;
 	}
 
+	if (IS_ENABLED(CFG_QCOM_PAS_FW_SMMU)) {
+		res = pas_fw_smmu_start(pas_id);
+		if (res)
+			return res;
+	}
+
 	switch (subsys->reset_seq) {
 	case QCOM_PAS_RESET_CLK_FULL:
 	case QCOM_PAS_RESET_CLK_ENABLE:
@@ -280,11 +291,14 @@ TEE_Result pas_platform_auth_and_reset(uint32_t pas_id)
 		res = subsys->ops->fw_start(data);
 		break;
 	default:
-		return TEE_ERROR_NOT_SUPPORTED;
+		res = TEE_ERROR_NOT_SUPPORTED;
+		break;
 	}
 
 	if (res == TEE_SUCCESS)
 		data->loaded = true;
+	else if (IS_ENABLED(CFG_QCOM_PAS_FW_SMMU))
+		pas_fw_smmu_abort(pas_id);
 
 	return res;
 }
@@ -306,6 +320,8 @@ TEE_Result pas_platform_shutdown(uint32_t pas_id)
 	}
 
 	res = subsys->ops->fw_shutdown(&subsys->data);
+	if (!res && IS_ENABLED(CFG_QCOM_PAS_FW_SMMU))
+		pas_fw_smmu_stop(pas_id);
 	if (!res) {
 		subsys->data.fw_base = 0;
 		subsys->data.fw_size = 0;

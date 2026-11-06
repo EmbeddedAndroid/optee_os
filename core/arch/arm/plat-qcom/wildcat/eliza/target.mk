@@ -35,6 +35,10 @@ CFG_QCOM_PAS_ADSP ?= y
 CFG_QCOM_PAS_CDSP ?= y
 CFG_QCOM_PAS_IRIS ?= y
 
+# OP-TEE programs the stage 2 of the ADSP, CDSP and iris firmware streams
+# on apps_smmu itself (the host DT then carries none of their iommus).
+CFG_QCOM_PAS_FW_SMMU ?= n
+
 ifeq ($(CFG_QCOM_PAS_PTA),y)
 CFG_IN_TREE_EARLY_TAS += qcom_pas/cff7d191-7ca0-4784-af13-48223b9a4fbe
 endif

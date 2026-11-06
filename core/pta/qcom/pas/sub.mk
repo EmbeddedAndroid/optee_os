@@ -3,6 +3,7 @@ srcs-y += pas_core.c
 srcs-y += pas_elf.c
 srcs-y += pas_video.c
 srcs-$(CFG_QCOM_PAS_AUTH) += pas_auth.c
+srcs-$(CFG_QCOM_PAS_FW_SMMU) += pas_fw_smmu.c
 incdirs-y += .
 incdirs-y += platform/
 subdirs-y += platform/$(PLATFORM_FLAVOR)

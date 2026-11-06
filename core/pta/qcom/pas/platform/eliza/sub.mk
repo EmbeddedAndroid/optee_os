@@ -4,3 +4,4 @@ srcs-$(CFG_QCOM_PAS_CDSP) += cdsp.c
 srcs-$(CFG_QCOM_PAS_IRIS) += iris.c
 incdirs-y += .
 incdirs-y += ../
+srcs-$(CFG_QCOM_PAS_FW_SMMU) += fw_smmu.c
