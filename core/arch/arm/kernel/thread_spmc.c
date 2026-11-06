@@ -306,6 +306,11 @@ static void handle_features(struct thread_smc_1_2_regs *args)
 	case FFA_FEATURES:
 	case FFA_SPM_ID_GET:
 	case FFA_MEM_FRAG_TX:
+	case FFA_MEM_FRAG_RX:
+#ifdef ARM64
+	case FFA_MEM_RETRIEVE_REQ_64:
+#endif
+	case FFA_MEM_RETRIEVE_REQ_32:
 	case FFA_MEM_RECLAIM:
 	case FFA_MSG_SEND_DIRECT_REQ_64:
 	case FFA_MSG_SEND_DIRECT_REQ_32:
@@ -1254,7 +1259,8 @@ static int add_mem_op(bool mem_share, struct ffa_mem_transaction_x *mem_trans,
 		cookie = mem_trans->global_handle;
 	if (!mem_share)
 		use_case = mem_trans->tag;
-	op.mf = mobj_ffa_sel1_spmc_new(cookie, op.page_count, use_case);
+	op.mf = mobj_ffa_sel1_spmc_new(cookie, op.page_count, use_case,
+				       mem_trans->sender_id);
 	if (!op.mf)
 		return FFA_NO_MEMORY;
 
@@ -1563,6 +1569,15 @@ out_set_rc:
 	spmc_set_args(args, ret_fid, ret_w1, ret_w2, ret_w3, 0, 0);
 }
 
+static uint16_t get_guest_id_by_cookie(uint64_t cookie)
+{
+	if (cookie & FFA_MEMORY_HANDLE_HYPERVISOR_BIT)
+		return virt_find_guest_by_cookie(cookie);
+
+	return (cookie >> FFA_MEMORY_HANDLE_PRTN_SHIFT) &
+	       FFA_MEMORY_HANDLE_PRTN_MASK;
+}
+
 static void handle_mem_reclaim(struct thread_smc_1_2_regs *args)
 {
 	int rc = FFA_INVALID_PARAMETERS;
@@ -1573,14 +1588,8 @@ static void handle_mem_reclaim(struct thread_smc_1_2_regs *args)
 
 	cookie = reg_pair_to_64(args->a2, args->a1);
 	if (IS_ENABLED(CFG_NS_VIRTUALIZATION)) {
-		uint16_t guest_id = 0;
+		uint16_t guest_id = get_guest_id_by_cookie(cookie);
 
-		if (cookie & FFA_MEMORY_HANDLE_HYPERVISOR_BIT) {
-			guest_id = virt_find_guest_by_cookie(cookie);
-		} else {
-			guest_id = (cookie >> FFA_MEMORY_HANDLE_PRTN_SHIFT) &
-				   FFA_MEMORY_HANDLE_PRTN_MASK;
-		}
 		if (!guest_id)
 			goto out;
 		if (virt_set_guest(guest_id)) {
@@ -1610,6 +1619,216 @@ static void handle_mem_reclaim(struct thread_smc_1_2_regs *args)
 
 out:
 	set_simple_ret_val(args, rc);
+}
+
+/*
+ * Builds the memory transaction descriptor returned to a hypervisor
+ * retrieve request for @cookie. Like the EL3 SPMC, it holds the sender,
+ * the handle, one endpoint memory access descriptor (OP-TEE, the only
+ * receiver this SPMC accepts) and the composite memory region
+ * descriptor; the attributes, flags and tag of the original transaction
+ * are not recorded and are returned as zero.
+ */
+static int hyp_retrieve_desc(uint32_t ffa_vers, uint64_t cookie,
+			     void **desc_ret, size_t *len_ret,
+			     uint16_t *sender_id)
+{
+	struct ffa_mem_access_common *mem_acc = NULL;
+	struct ffa_mem_region *region = NULL;
+	unsigned int page_count = 0;
+	size_t mem_acc_offs = 0;
+	size_t mem_acc_size = 0;
+	size_t region_offs = 0;
+	size_t count = 0;
+	size_t len = 0;
+	uint8_t *desc = NULL;
+	TEE_Result res = TEE_SUCCESS;
+	int rc = 0;
+
+	if (IS_ENABLED(CFG_NS_VIRTUALIZATION) &&
+	    virt_set_guest(get_guest_id_by_cookie(cookie)))
+		return FFA_INVALID_PARAMETERS;
+
+	res = mobj_ffa_sel1_spmc_get_ranges(cookie, NULL, &count, &page_count,
+					    sender_id);
+	if (res != TEE_ERROR_SHORT_BUFFER) {
+		rc = FFA_INVALID_PARAMETERS;
+		goto out;
+	}
+
+	if (ffa_vers >= FFA_VERSION_1_1) {
+		mem_acc_offs = sizeof(struct ffa_mem_transaction_1_1);
+		if (ffa_vers >= FFA_VERSION_1_2)
+			mem_acc_size = sizeof(struct ffa_mem_access_1_2);
+		else
+			mem_acc_size = sizeof(struct ffa_mem_access_1_0);
+	} else {
+		mem_acc_offs = offsetof(struct ffa_mem_transaction_1_0,
+					mem_access_array);
+		mem_acc_size = sizeof(struct ffa_mem_access_1_0);
+	}
+	region_offs = mem_acc_offs + mem_acc_size;
+
+	if (MUL_OVERFLOW(count, sizeof(struct ffa_address_range), &len) ||
+	    ADD_OVERFLOW(len, region_offs + sizeof(*region), &len)) {
+		rc = FFA_NO_MEMORY;
+		goto out;
+	}
+	desc = calloc(1, len);
+	if (!desc) {
+		rc = FFA_NO_MEMORY;
+		goto out;
+	}
+	region = (void *)(desc + region_offs);
+
+	res = mobj_ffa_sel1_spmc_get_ranges(cookie,
+					    region->address_range_array,
+					    &count, &page_count, sender_id);
+	if (res) {
+		free(desc);
+		rc = FFA_INVALID_PARAMETERS;
+		goto out;
+	}
+
+	if (ffa_vers >= FFA_VERSION_1_1) {
+		struct ffa_mem_transaction_1_1 *trans = (void *)desc;
+
+		trans->sender_id = *sender_id;
+		trans->global_handle = cookie;
+		trans->mem_access_size = mem_acc_size;
+		trans->mem_access_count = 1;
+		trans->mem_access_offs = mem_acc_offs;
+	} else {
+		struct ffa_mem_transaction_1_0 *trans = (void *)desc;
+
+		trans->sender_id = *sender_id;
+		trans->global_handle = cookie;
+		trans->mem_access_count = 1;
+	}
+
+	mem_acc = (void *)(desc + mem_acc_offs);
+	mem_acc->access_perm.endpoint_id = optee_core_lsp.sp_id;
+	mem_acc->access_perm.perm = FFA_MEM_ACC_RW;
+	mem_acc->region_offs = region_offs;
+
+	region->total_page_count = page_count;
+	region->address_range_count = count;
+
+	*desc_ret = desc;
+	*len_ret = region_offs + sizeof(*region) +
+		   count * sizeof(struct ffa_address_range);
+out:
+	if (IS_ENABLED(CFG_NS_VIRTUALIZATION))
+		virt_unset_guest();
+
+	return rc;
+}
+
+/*
+ * Copies the fragment of the descriptor of @cookie starting at
+ * @frag_offs into the RX buffer of the caller. The descriptor is
+ * rebuilt for each fragment instead of being kept between calls; a
+ * hypervisor retrieves all fragments of a handle before it reclaims it.
+ */
+static int hyp_retrieve_copy(struct ffa_rxtx *rxtx, uint64_t cookie,
+			     size_t frag_offs, uint16_t exp_sender_id,
+			     size_t *tot_len, size_t *frag_len)
+{
+	uint16_t sender_id = 0;
+	void *desc = NULL;
+	size_t len = 0;
+	int rc = 0;
+
+	if (!rxtx->size || !rxtx->tx_is_mine)
+		return FFA_DENIED;
+
+	rc = hyp_retrieve_desc(rxtx->ffa_vers, cookie, &desc, &len,
+			       &sender_id);
+	if (rc)
+		return rc;
+
+	if (frag_offs >= len || (exp_sender_id && exp_sender_id != sender_id)) {
+		rc = FFA_INVALID_PARAMETERS;
+	} else {
+		*tot_len = len;
+		*frag_len = MIN(len - frag_offs, (size_t)rxtx->size);
+		memcpy(rxtx->tx, (uint8_t *)desc + frag_offs, *frag_len);
+		rxtx->tx_is_mine = false;
+	}
+
+	free(desc);
+	return rc;
+}
+
+/*
+ * FFA_MEM_RETRIEVE_REQ from the normal world: only the hypervisor
+ * retrieve request, which has no endpoint memory access descriptors, is
+ * supported. pKVM sends it to learn the constituents of a handle before
+ * it forwards FFA_MEM_RECLAIM.
+ */
+static void handle_mem_retrieve_req(struct thread_smc_1_2_regs *args,
+				    struct ffa_rxtx *rxtx)
+{
+	struct ffa_mem_transaction_x trans = { };
+	uint32_t tot_len = args->a1;
+	uint32_t frag_len = args->a2;
+	size_t resp_tot_len = 0;
+	size_t resp_frag_len = 0;
+	int rc = FFA_INVALID_PARAMETERS;
+
+	/* No dynamically allocated buffer, no fragmented request */
+	if (args->a3 || args->a4 || args->a5 || args->a6 || args->a7 ||
+	    frag_len != tot_len)
+		goto out;
+
+	cpu_spin_lock(&rxtx->spinlock);
+	if (!rxtx->size) {
+		rc = FFA_DENIED;
+		goto unlock;
+	}
+	rc = spmc_read_mem_transaction(rxtx->ffa_vers, rxtx->rx, rxtx->size,
+				       tot_len, frag_len, &trans);
+	if (rc)
+		goto unlock;
+	if (trans.mem_access_count) {
+		rc = FFA_NOT_SUPPORTED;
+		goto unlock;
+	}
+	rc = hyp_retrieve_copy(rxtx, trans.global_handle, 0, 0,
+			       &resp_tot_len, &resp_frag_len);
+unlock:
+	cpu_spin_unlock(&rxtx->spinlock);
+out:
+	if (rc)
+		set_simple_ret_val(args, rc);
+	else
+		spmc_set_args(args, FFA_MEM_RETRIEVE_RESP, resp_tot_len,
+			      resp_frag_len, 0, 0, 0);
+}
+
+static void handle_mem_frag_rx(struct thread_smc_1_2_regs *args,
+			       struct ffa_rxtx *rxtx)
+{
+	uint64_t cookie = reg_pair_to_64(args->a2, args->a1);
+	uint32_t frag_offs = args->a3;
+	uint32_t sender = args->a4;
+	size_t tot_len = 0;
+	size_t frag_len = 0;
+	int rc = FFA_INVALID_PARAMETERS;
+
+	if ((sender & GENMASK_32(15, 0)) || args->a5 || args->a6 || args->a7)
+		goto out;
+
+	cpu_spin_lock(&rxtx->spinlock);
+	rc = hyp_retrieve_copy(rxtx, cookie, frag_offs, sender >> 16,
+			       &tot_len, &frag_len);
+	cpu_spin_unlock(&rxtx->spinlock);
+out:
+	if (rc)
+		set_simple_ret_val(args, rc);
+	else
+		spmc_set_args(args, FFA_MEM_FRAG_TX, args->a1, args->a2,
+			      frag_len, sender, 0);
 }
 
 static void handle_notification_bitmap_create(struct thread_smc_1_2_regs *args)
@@ -2056,6 +2275,15 @@ void thread_spmc_msg_recv(struct thread_smc_1_2_regs *args)
 		break;
 	case FFA_MEM_FRAG_TX:
 		handle_mem_frag_tx(args, &my_rxtx);
+		break;
+#ifdef ARM64
+	case FFA_MEM_RETRIEVE_REQ_64:
+#endif
+	case FFA_MEM_RETRIEVE_REQ_32:
+		handle_mem_retrieve_req(args, &my_rxtx);
+		break;
+	case FFA_MEM_FRAG_RX:
+		handle_mem_frag_rx(args, &my_rxtx);
 		break;
 	case FFA_NOTIFICATION_BITMAP_CREATE:
 		handle_notification_bitmap_create(args);
