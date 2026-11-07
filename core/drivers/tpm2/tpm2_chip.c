@@ -6,6 +6,7 @@
 #include <assert.h>
 #include <drivers/tpm2_chip.h>
 #include <io.h>
+#include <kernel/mutex.h>
 #include <kernel/tcg.h>
 #include <malloc.h>
 #include <string.h>
@@ -14,12 +15,24 @@
 
 static struct tpm2_chip *tpm2_device;
 
-enum tpm2_result tpm2_chip_send(uint8_t *buf, uint32_t len)
+/* One command in flight on the chip, whatever the caller and locality */
+static struct mutex tpm2_chip_lock = MUTEX_INITIALIZER;
+
+static enum tpm2_result tpm2_chip_send_locality(uint8_t locality,
+						uint8_t *buf, uint32_t len)
 {
 	if (!tpm2_device || !tpm2_device->ops->send)
 		return TPM2_ERR_NODEV;
 
-	return tpm2_device->ops->send(tpm2_device, buf, len);
+	if (locality > TPM2_LOCALITY_MAX)
+		return TPM2_ERR_INVALID_ARG;
+
+	return tpm2_device->ops->send(tpm2_device, locality, buf, len);
+}
+
+enum tpm2_result tpm2_chip_send(uint8_t *buf, uint32_t len)
+{
+	return tpm2_chip_send_locality(0, buf, len);
 }
 
 enum tpm2_result tpm2_chip_recv(uint8_t *buf, uint32_t *len,
@@ -29,6 +42,24 @@ enum tpm2_result tpm2_chip_recv(uint8_t *buf, uint32_t *len,
 		return TPM2_ERR_NODEV;
 
 	return tpm2_device->ops->recv(tpm2_device, buf, len, cmd_duration);
+}
+
+enum tpm2_result tpm2_chip_transceive(uint8_t locality, uint8_t *cmd,
+				      uint32_t cmd_len, uint8_t *resp,
+				      uint32_t *resp_len,
+				      uint32_t cmd_duration)
+{
+	enum tpm2_result ret = TPM2_OK;
+
+	mutex_lock(&tpm2_chip_lock);
+
+	ret = tpm2_chip_send_locality(locality, cmd, cmd_len);
+	if (!ret)
+		ret = tpm2_chip_recv(resp, resp_len, cmd_duration);
+
+	mutex_unlock(&tpm2_chip_lock);
+
+	return ret;
 }
 
 enum tpm2_result tpm2_chip_get_caps(struct tpm2_caps *capability)

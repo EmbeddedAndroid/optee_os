@@ -81,8 +81,8 @@ struct tpm2_chip {
 struct tpm2_ptp_ops {
 	enum tpm2_result (*init)(struct tpm2_chip *chip);
 	enum tpm2_result (*end)(struct tpm2_chip *chip);
-	enum tpm2_result (*send)(struct tpm2_chip *chip, uint8_t *buf,
-				 uint32_t len);
+	enum tpm2_result (*send)(struct tpm2_chip *chip, uint8_t locality,
+				 uint8_t *buf, uint32_t len);
 	enum tpm2_result (*recv)(struct tpm2_chip *chip, uint8_t *buf,
 				 uint32_t *len, uint32_t cmd_duration);
 };
@@ -102,9 +102,23 @@ struct tpm2_ptp_phy_ops {
 enum tpm2_result tpm2_chip_register(struct tpm2_chip *chip);
 enum tpm2_result tpm2_chip_unregister(struct tpm2_chip *chip);
 
+/* Highest TIS locality (PTP: localities 0 to 4) */
+#define TPM2_LOCALITY_MAX	4
+
 enum tpm2_result tpm2_chip_send(uint8_t *buf, uint32_t len);
 enum tpm2_result tpm2_chip_recv(uint8_t *buf, uint32_t *len,
 				uint32_t cmd_duration);
+
+/*
+ * Send a command at TIS locality @locality and receive its response,
+ * serialized against every other user of the chip. @resp_len holds the
+ * capacity of @resp on entry and the response length on return (the
+ * required length on TPM2_ERR_SHORT_BUFFER).
+ */
+enum tpm2_result tpm2_chip_transceive(uint8_t locality, uint8_t *cmd,
+				      uint32_t cmd_len, uint8_t *resp,
+				      uint32_t *resp_len,
+				      uint32_t cmd_duration);
 
 enum tpm2_result tpm2_chip_get_caps(struct tpm2_caps *capability);
 bool tpm2_chip_is_active_bank(uint16_t alg);

@@ -73,6 +73,8 @@ static bool tpm2_fifo_check_locality(struct tpm2_chip *chip, uint32_t loc)
 	return false;
 }
 
+static enum tpm2_result tpm2_fifo_relinquish_locality(struct tpm2_chip *chip);
+
 /* Based on Figure 2 - Locality Access protocol from DD Specification */
 static enum tpm2_result tpm2_fifo_request_locality(struct tpm2_chip *chip,
 						   uint32_t loc)
@@ -82,8 +84,15 @@ static enum tpm2_result tpm2_fifo_request_locality(struct tpm2_chip *chip,
 	uint8_t buf = 0;
 	enum tpm2_result ret = TPM2_OK;
 
-	if (chip->locality >= 0)
-		return TPM2_ERR_BUSY;
+	if (chip->locality == (int32_t)loc)
+		return TPM2_OK;
+
+	/* Another locality is still held: give it up before switching */
+	if (chip->locality >= 0) {
+		ret = tpm2_fifo_relinquish_locality(chip);
+		if (ret)
+			return ret;
+	}
 
 	/* first check if locality is active FIFO.activeLocality == 1 */
 	if (tpm2_fifo_check_locality(chip, loc)) {
@@ -265,8 +274,8 @@ enum tpm2_result tpm2_fifo_end(struct tpm2_chip *chip)
 }
 
 /* Based on Figure 3 - Send Command using FIFO protocol in DD Specification */
-enum tpm2_result tpm2_fifo_send(struct tpm2_chip *chip, uint8_t *buf,
-				uint32_t len)
+enum tpm2_result tpm2_fifo_send(struct tpm2_chip *chip, uint8_t locality,
+				uint8_t *buf, uint32_t len)
 {
 	enum tpm2_result ret = TPM2_OK;
 	const struct tpm2_ptp_phy_ops *ops = NULL;
@@ -282,8 +291,8 @@ enum tpm2_result tpm2_fifo_send(struct tpm2_chip *chip, uint8_t *buf,
 
 	ops = chip->phy_ops;
 
-	/* locality will be relinquishd in tpm2_fifo_recv() */
-	ret = tpm2_fifo_request_locality(chip, 0);
+	/* locality will be relinquished in tpm2_fifo_recv() */
+	ret = tpm2_fifo_request_locality(chip, locality);
 	if (ret)
 		return ret;
 
