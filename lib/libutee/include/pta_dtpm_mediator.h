@@ -20,4 +20,16 @@
  */
 #define PTA_DTPM_MEDIATOR_SUBMIT_COMMAND	0
 
+/*
+ * Same as PTA_DTPM_MEDIATOR_SUBMIT_COMMAND at a given TIS locality. A
+ * locality the platform does not grant the normal world (never locality 4,
+ * which is reserved for the secure world) fails with TEE_ERROR_ACCESS_DENIED
+ * and nothing reaches the TPM.
+ *
+ * [in]     memref[0]        TPM command buffer
+ * [in/out] memref[1]        TPM response buffer (in: capacity, out: length)
+ * [in]     value[2].a       TIS locality (0 to 4)
+ */
+#define PTA_DTPM_MEDIATOR_SUBMIT_COMMAND_LOCALITY	1
+
 #endif /* __PTA_DTPM_MEDIATOR_H */

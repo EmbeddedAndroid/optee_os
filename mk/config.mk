@@ -1257,6 +1257,10 @@ CFG_DTPM_MEDIATOR_PTA ?= n
 # bus, so it needs both.
 $(eval $(call cfg-enable-all-depends,CFG_DTPM_MEDIATOR_PTA,CFG_DRIVERS_TPM2 \
 	 CFG_DEVICE_ENUM_PTA))
+# TIS localities the normal world may submit at through that PTA, one bit
+# per locality. Locality 0 is required; locality 4 is reserved for the
+# secure world and cannot be granted.
+CFG_DTPM_MEDIATOR_NS_LOCALITIES ?= 0x1
 
 # Enable the FF-A SPMC tests in xtests
 CFG_SPMC_TESTS ?= n
