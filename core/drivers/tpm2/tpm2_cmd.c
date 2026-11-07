@@ -89,13 +89,9 @@ static enum tpm2_result tpm2_transmit(void *buf, uint32_t bufsz, void *resp,
 
 	DHEXDUMP(buf, tpm2_cmd_len(buf));
 
-	ret = tpm2_chip_send(buf, bufsz);
-	if (ret)
-		return ret;
-
 	cmd_duration = tpm2_get_cmd_duration(tpm2_cmd_code(buf));
 
-	ret = tpm2_chip_recv(resp, len, cmd_duration);
+	ret = tpm2_chip_transceive(0, buf, bufsz, resp, len, cmd_duration);
 	if (ret)
 		return ret;
 

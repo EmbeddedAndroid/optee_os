@@ -62,7 +62,8 @@
 
 enum tpm2_result tpm2_fifo_init(struct tpm2_chip *chip);
 enum tpm2_result tpm2_fifo_end(struct tpm2_chip *chip);
-enum tpm2_result tpm2_fifo_send(struct tpm2_chip *chip, uint8_t *buf,
+enum tpm2_result tpm2_fifo_send(struct tpm2_chip *chip, uint8_t locality,
+				uint8_t *buf,
 				uint32_t len);
 enum tpm2_result tpm2_fifo_recv(struct tpm2_chip *chip, uint8_t *buf,
 				uint32_t *len, uint32_t cmd_duration);
