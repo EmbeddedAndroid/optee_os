@@ -103,6 +103,7 @@ struct tpm2_ptp_phy_ops {
 };
 
 enum tpm2_result tpm2_chip_register(struct tpm2_chip *chip);
+bool tpm2_chip_is_registered(void);
 enum tpm2_result tpm2_chip_unregister(struct tpm2_chip *chip);
 
 /* Highest TIS locality (PTP: localities 0 to 4) */

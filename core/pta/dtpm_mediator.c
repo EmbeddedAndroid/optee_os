@@ -119,6 +119,14 @@ static TEE_Result open_session(uint32_t ptypes __unused,
 	if (ta_session->clnt_id.login != TEE_LOGIN_REE_KERNEL)
 		return TEE_ERROR_ACCESS_DENIED;
 
+	/*
+	 * The PTA is enumerated whether or not the chip came up. Refuse the
+	 * session when it did not, so that a normal world driver gives up on
+	 * the device at probe instead of failing every command later.
+	 */
+	if (!tpm2_chip_is_registered())
+		return TEE_ERROR_ITEM_NOT_FOUND;
+
 	return TEE_SUCCESS;
 }
 
