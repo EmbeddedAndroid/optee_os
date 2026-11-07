@@ -58,6 +58,7 @@ static const struct tpm2_ptp_ops tpm2_fifo_ops = {
 	.end = tpm2_fifo_end,
 	.send = tpm2_fifo_send,
 	.recv = tpm2_fifo_recv,
+	.hash_sequence = tpm2_fifo_hash_sequence,
 };
 
 /*

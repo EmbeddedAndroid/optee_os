@@ -24,7 +24,9 @@
 #define TPM2_INT_STATUS(v)	(0x0010 | SHIFT_U32((v), 12))
 #define TPM2_INT_CAPABILITY(v)	(0x0014 | SHIFT_U32((v), 12))
 #define TPM2_STS(v)		(0x0018 | SHIFT_U32((v), 12))
+#define TPM2_HASH_END(v)	(0x0020 | SHIFT_U32((v), 12))
 #define TPM2_DATA_FIFO(v)	(0x0024 | SHIFT_U32((v), 12))
+#define TPM2_HASH_START(v)	(0x0028 | SHIFT_U32((v), 12))
 #define TPM2_INTERFACE_ID(v)	(0x0030 | SHIFT_U32((v), 12))
 #define TPM2_XDATA_FIFO(v)	(0x0080 | SHIFT_U32((v), 12))
 #define TPM2_DID_VID(v)		(0x0F00 | SHIFT_U32((v), 12))
@@ -65,6 +67,8 @@ enum tpm2_result tpm2_fifo_end(struct tpm2_chip *chip);
 enum tpm2_result tpm2_fifo_send(struct tpm2_chip *chip, uint8_t locality,
 				uint8_t *buf,
 				uint32_t len);
+enum tpm2_result tpm2_fifo_hash_sequence(struct tpm2_chip *chip,
+					 const uint8_t *data, size_t len);
 enum tpm2_result tpm2_fifo_recv(struct tpm2_chip *chip, uint8_t *buf,
 				uint32_t *len, uint32_t cmd_duration);
 

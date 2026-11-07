@@ -14,6 +14,7 @@
 #include <drivers/tpm2_cmd.h>
 #include <drivers/tpm2_ptp_fifo.h>
 #include <kernel/delay.h>
+#include <string.h>
 #include <trace.h>
 
 /* DD specification states that 3 is a good choice for retry count */
@@ -387,6 +388,79 @@ enum tpm2_result tpm2_fifo_send(struct tpm2_chip *chip, uint8_t locality,
 		return TPM2_ERR_GENERIC;
 
 	return ret;
+}
+
+/*
+ * D-RTM hash sequence (PTP, FIFO interface): with locality 4 active, a
+ * write to TPM_HASH_START is _TPM_Hash_Start, writes to TPM_DATA_FIFO are
+ * _TPM_Hash_Data and a write to TPM_HASH_END is _TPM_Hash_End. These
+ * registers exist only at locality 4, which only the secure world drives
+ * here: the normal world never reaches the bus.
+ *
+ * The data writes are not paced by burstCount, which stays 0 during the
+ * sequence, but by the bus (SPI wait states). Once _TPM_Hash_Start is
+ * written the TPM keeps locality 4 until _TPM_Hash_End, and ignores a
+ * relinquish before it, so the sequence is always closed.
+ */
+enum tpm2_result tpm2_fifo_hash_sequence(struct tpm2_chip *chip,
+					 const uint8_t *data, size_t len)
+{
+	const struct tpm2_ptp_phy_ops *ops = chip->phy_ops;
+	uint8_t chunk[64] = { };
+	uint8_t dummy = 0;
+	uint8_t access = 0;
+	size_t done = 0;
+	size_t n = 0;
+	uint64_t timeout_ref = 0;
+	bool expired = false;
+	enum tpm2_result ret = TPM2_OK;
+	enum tpm2_result ret2 = TPM2_OK;
+
+	ret = tpm2_fifo_request_locality(chip, TPM2_LOCALITY_MAX);
+	if (ret) {
+		EMSG("TPM2: locality 4 not granted: %d", ret);
+		return ret;
+	}
+
+	ret = ops->tx8(chip, TPM2_HASH_START(TPM2_LOCALITY_MAX), 1, &dummy);
+	if (ret)
+		goto out;
+
+	while (done < len) {
+		n = MIN(len - done, sizeof(chunk));
+		memcpy(chunk, data + done, n);
+		ret = ops->tx8(chip, TPM2_DATA_FIFO(TPM2_LOCALITY_MAX), n,
+			       chunk);
+		if (ret)
+			break;
+		done += n;
+	}
+
+	/* Close the sequence even after a failed data write */
+	ret2 = ops->tx8(chip, TPM2_HASH_END(TPM2_LOCALITY_MAX), 1, &dummy);
+	if (!ret)
+		ret = ret2;
+out:
+	ret2 = tpm2_fifo_relinquish_locality(chip);
+	if (!ret)
+		ret = ret2;
+
+	/* The relinquish must take: a stuck locality 4 locks out the others */
+	timeout_ref = timeout_init_us(chip->timeout_a * 1000);
+	do {
+		expired = timeout_elapsed(timeout_ref);
+		ret2 = ops->rx8(chip, TPM2_ACCESS(TPM2_LOCALITY_MAX), 1,
+				&access);
+		if (!ret2 && !(access & TPM2_ACCESS_ACTIVE_LOCALITY))
+			return ret;
+		if (!expired)
+			mdelay(TPM2_TIMEOUT_RETRY_MS);
+	} while (!expired);
+
+	EMSG("TPM2: locality 4 still active after the hash sequence (%#x)",
+	     access);
+
+	return ret ? ret : TPM2_ERR_BUSY;
 }
 
 /*
