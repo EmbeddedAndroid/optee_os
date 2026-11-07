@@ -10,8 +10,9 @@
  * SUBMIT_COMMAND, using a distinct UUID rather than the fTPM one.
  */
 
+#include <assert.h>
 #include <drivers/tpm2_chip.h>
-#include <kernel/mutex.h>
+#include <inttypes.h>
 #include <kernel/pseudo_ta.h>
 #include <pta_tpm_passthrough.h>
 #include <string.h>
@@ -21,22 +22,30 @@
 #define PTA_NAME "tpm_passthrough.pta"
 
 /*
- * Serialise transceive against other in-core users of the single TPM chip
- * (e.g. the TCG event-log provider), and against concurrent REE callers.
+ * Localities the normal world may submit at, one bit per locality. The
+ * secure world reserves locality 4 (D-RTM: _TPM_Hash_* and PCR 17 reset).
  */
-static struct mutex tpm_lock = MUTEX_INITIALIZER;
+#define TPM_NS_LOCALITIES	CFG_TPM_PASSTHROUGH_NS_LOCALITIES
+
+static_assert(!(TPM_NS_LOCALITIES & BIT(TPM2_LOCALITY_MAX)),
+	      "locality 4 is reserved for the secure world");
+static_assert(TPM_NS_LOCALITIES & BIT(0), "the normal world needs locality 0");
 
 static TEE_Result tpm_pta_submit(uint32_t ptypes,
-				 TEE_Param params[TEE_NUM_PARAMS])
+				 TEE_Param params[TEE_NUM_PARAMS],
+				 bool with_locality)
 {
 	uint32_t exp = TEE_PARAM_TYPES(TEE_PARAM_TYPE_MEMREF_INPUT,
 				       TEE_PARAM_TYPE_MEMREF_INOUT,
+				       with_locality ?
+				       TEE_PARAM_TYPE_VALUE_INPUT :
 				       TEE_PARAM_TYPE_NONE,
 				       TEE_PARAM_TYPE_NONE);
 	uint8_t *cmd = params[0].memref.buffer;
 	uint32_t cmd_len = params[0].memref.size;
 	uint8_t *resp = params[1].memref.buffer;
 	uint32_t resp_len = params[1].memref.size;
+	uint32_t locality = 0;
 	enum tpm2_result res = TPM2_OK;
 
 	if (ptypes != exp)
@@ -45,26 +54,27 @@ static TEE_Result tpm_pta_submit(uint32_t ptypes,
 	if (!cmd || !cmd_len || !resp || !resp_len)
 		return TEE_ERROR_BAD_PARAMETERS;
 
-	mutex_lock(&tpm_lock);
-
-	res = tpm2_chip_send(cmd, cmd_len);
-	if (res) {
-		mutex_unlock(&tpm_lock);
-		EMSG("TPM passthrough: send failed (%d)", res);
-		return TEE_ERROR_COMMUNICATION;
+	if (with_locality) {
+		locality = params[2].value.a;
+		if (locality > TPM2_LOCALITY_MAX)
+			return TEE_ERROR_BAD_PARAMETERS;
+		if (!(TPM_NS_LOCALITIES & BIT(locality))) {
+			IMSG("TPM passthrough: locality %" PRIu32
+			     " refused to the normal world", locality);
+			return TEE_ERROR_ACCESS_DENIED;
+		}
 	}
 
-	res = tpm2_chip_recv(resp, &resp_len, TPM2_CMD_DURATION_DEFAULT);
-
-	mutex_unlock(&tpm_lock);
-
+	res = tpm2_chip_transceive(locality, cmd, cmd_len, resp, &resp_len,
+				   TPM2_CMD_DURATION_DEFAULT);
 	if (res == TPM2_ERR_SHORT_BUFFER) {
 		/* resp_len now holds the required length */
 		params[1].memref.size = resp_len;
 		return TEE_ERROR_SHORT_BUFFER;
 	}
 	if (res) {
-		EMSG("TPM passthrough: recv failed (%d)", res);
+		EMSG("TPM passthrough: transceive at locality %" PRIu32
+		     " failed (%d)", locality, res);
 		return TEE_ERROR_COMMUNICATION;
 	}
 
@@ -79,7 +89,9 @@ static TEE_Result invoke_command(void *session __unused, uint32_t cmd,
 {
 	switch (cmd) {
 	case PTA_TPM_PASSTHROUGH_SUBMIT_COMMAND:
-		return tpm_pta_submit(ptypes, params);
+		return tpm_pta_submit(ptypes, params, false);
+	case PTA_TPM_PASSTHROUGH_SUBMIT_COMMAND_LOCALITY:
+		return tpm_pta_submit(ptypes, params, true);
 	default:
 		return TEE_ERROR_NOT_IMPLEMENTED;
 	}

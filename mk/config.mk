@@ -1252,6 +1252,10 @@ endif
 # Expose the in-core discrete TPM to the normal world as a TPM transport,
 # via a pseudo TA the Linux TEE-backed TPM driver can bind to by UUID.
 CFG_TPM_PASSTHROUGH_PTA ?= n
+# TIS localities the normal world may submit at through that PTA, one bit
+# per locality. Locality 0 is required; locality 4 is reserved for the
+# secure world and cannot be granted.
+CFG_TPM_PASSTHROUGH_NS_LOCALITIES ?= 0x1
 
 # Enable the FF-A SPMC tests in xtests
 CFG_SPMC_TESTS ?= n
