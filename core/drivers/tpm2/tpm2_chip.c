@@ -310,6 +310,11 @@ err:
 	return ret;
 }
 
+bool tpm2_chip_is_registered(void)
+{
+	return tpm2_device;
+}
+
 enum tpm2_result tpm2_chip_unregister(struct tpm2_chip *chip)
 {
 	enum tpm2_result ret = TPM2_OK;
