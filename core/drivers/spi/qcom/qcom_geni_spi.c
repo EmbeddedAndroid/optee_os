@@ -657,10 +657,19 @@ qup_spi_poll_m_cmd(struct qup_spi_data *qs, uint32_t done_bit,
 		   bool check_rem_bytes, unsigned int timeout_us)
 {
 	uint64_t timeout_ref = timeout_init_us(timeout_us);
+	bool expired = false;
 
-	while (!timeout_elapsed(timeout_ref)) {
-		uint32_t m_irq = io_read32(qs->base + SE_GENI_M_IRQ_STATUS);
+	/*
+	 * Sample the deadline before reading the status: this thread can be
+	 * suspended for a long time by normal world interrupts, and a deadline
+	 * found expired on resume must still be followed by one more read of
+	 * a command the hardware has completed meanwhile.
+	 */
+	do {
+		uint32_t m_irq = 0;
 
+		expired = timeout_elapsed(timeout_ref);
+		m_irq = io_read32(qs->base + SE_GENI_M_IRQ_STATUS);
 		if (!m_irq)
 			continue;
 
@@ -686,7 +695,7 @@ qup_spi_poll_m_cmd(struct qup_spi_data *qs, uint32_t done_bit,
 			continue;
 
 		return QUP_SPI_POLL_DONE;
-	}
+	} while (!expired);
 
 	return QUP_SPI_POLL_TIMEOUT;
 }
@@ -782,9 +791,14 @@ static void qup_spi_flushfifo(struct spi_chip *chip)
 		return;
 
 	timeout_ref = timeout_init_us(QUP_SPI_M_CMD_TIMEOUT_US);
-	while (io_read32(qs->base + SE_GENI_RX_FIFO_STATUS) & RX_FIFO_WC_MSK) {
+	while (true) {
+		bool expired = timeout_elapsed(timeout_ref);
+
+		if (!(io_read32(qs->base + SE_GENI_RX_FIFO_STATUS) &
+		      RX_FIFO_WC_MSK))
+			break;
 		io_read32(qs->base + SE_GENI_RX_FIFOn);
-		if (timeout_elapsed(timeout_ref)) {
+		if (expired) {
 			EMSG("QUP SPI %u: flushfifo RX drain timed out",
 			     qs->id);
 			qup_spi_clk_disable(qs);
@@ -793,14 +807,19 @@ static void qup_spi_flushfifo(struct spi_chip *chip)
 	}
 
 	timeout_ref = timeout_init_us(QUP_SPI_M_CMD_TIMEOUT_US);
-	while (io_read32(qs->base + SE_GENI_STATUS) &
-	       GENI_STATUS_M_GENI_CMD_ACTIVE)
-		if (timeout_elapsed(timeout_ref)) {
+	while (true) {
+		bool expired = timeout_elapsed(timeout_ref);
+
+		if (!(io_read32(qs->base + SE_GENI_STATUS) &
+		      GENI_STATUS_M_GENI_CMD_ACTIVE))
+			break;
+		if (expired) {
 			EMSG("QUP SPI %u: flushfifo CMD_ACTIVE timed out",
 			     qs->id);
 			qup_spi_clk_disable(qs);
 			return;
 		}
+	}
 
 	qup_spi_clk_disable(qs);
 }
