@@ -4,10 +4,14 @@
  */
 
 #include <drivers/qcom_geni_spi.h>
+#include <drivers/tpm2_chip.h>
 #include <drivers/tpm2_spi.h>
 #include <initcall.h>
 #include <inttypes.h>
 #include <spi.h>
+#include <stdio.h>
+#include <string.h>
+#include <tpm2.h>
 #include <trace.h>
 
 static struct qup_spi_data tpm2_spi_qs;
@@ -37,6 +41,31 @@ static TEE_Result init_tpm2_spi(void)
 	}
 
 	DMSG("TPM2 SPI chip initialized");
+
+	if (IS_ENABLED(CFG_QCOM_TPM2_LOC4_TEST)) {
+		/*
+		 * Test hook: a locality 4 hash sequence over a fixed string, so
+		 * that the normal world can check PCR 17 =
+		 * SHA256(0^32 || SHA256(msg)), a value only locality 4 can set.
+		 */
+		static const char msg[] = "OP-TEE TPM locality 4 test";
+		uint8_t pcr[32] = { };
+		uint32_t pcr_len = sizeof(pcr);
+		char hex[2 * sizeof(pcr) + 1] = { };
+		unsigned int i = 0;
+
+		if (tpm2_chip_hash_sequence((const uint8_t *)msg,
+					    strlen(msg))) {
+			EMSG("TPM2: locality 4 hash sequence failed");
+		} else if (tpm2_pcr_read(17, TPM2_ALG_SHA256, pcr, &pcr_len)) {
+			EMSG("TPM2: PCR 17 read failed");
+		} else {
+			for (i = 0; i < pcr_len && i < sizeof(pcr); i++)
+				snprintf(hex + 2 * i, 3, "%02x", pcr[i]);
+			IMSG("TPM2: locality 4 hash done, PCR 17 sha256 %s",
+			     hex);
+		}
+	}
 
 	return TEE_SUCCESS;
 }
