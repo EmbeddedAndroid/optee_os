@@ -4,6 +4,7 @@
  */
 
 #include <arm.h>
+#include <compiler.h>
 #include <drivers/qcom/cmd_db/cmd_db.h>
 #include <initcall.h>
 #include <kernel/mutex.h>
@@ -112,7 +113,7 @@ struct cmd_db_data {
 	struct mutex lock; /* Protects CMD_DB data access */
 };
 
-static struct cmd_db_data query_db = {
+static struct cmd_db_data query_db __nex_data = {
 	.lock = MUTEX_INITIALIZER,
 };
 
@@ -448,4 +449,4 @@ TEE_Result cmd_db_get_priority(uint32_t addr, uint8_t drv_id,
 	return res;
 }
 
-early_init(cmd_db_init);
+nex_early_init(cmd_db_init);
