@@ -36,6 +36,8 @@ endif
 CFG_TPM2_SPI_SE_ID ?= 15
 CFG_TPM2_SPI_CS ?= 0
 CFG_TPM2_SPI_SPEED_HZ ?= 20000000
+# Test hook: measure a fixed string at locality 4 when the dTPM is up.
+CFG_QCOM_TPM2_LOC4_TEST ?= n
 
 ifneq ($(CFG_INSECURE),y)
 CFG_QCOM_QFPROM_FUSEPROV ?= y
