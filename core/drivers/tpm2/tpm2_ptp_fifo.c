@@ -35,9 +35,11 @@ static enum tpm2_result tpm2_fifo_wait_valid(struct tpm2_chip *chip,
 	const struct tpm2_ptp_phy_ops *ops = chip->phy_ops;
 	enum tpm2_result ret = TPM2_OK;
 	uint64_t timeout_ref = timeout_init_us(chip->timeout_a * 1000);
+	bool expired = false;
 	uint8_t access = 0;
 
 	do {
+		expired = timeout_elapsed(timeout_ref);
 		ret = ops->rx8(chip, TPM2_ACCESS(loc), sizeof(access), &access);
 		if (ret)
 			return ret;
@@ -45,8 +47,9 @@ static enum tpm2_result tpm2_fifo_wait_valid(struct tpm2_chip *chip,
 		if (access & TPM2_ACCESS_VALID)
 			return TPM2_OK;
 
-		mdelay(TPM2_TIMEOUT_RETRY_MS);
-	} while (!timeout_elapsed(timeout_ref));
+		if (!expired)
+			mdelay(TPM2_TIMEOUT_RETRY_MS);
+	} while (!expired);
 
 	return TPM2_ERR_TIMEOUT;
 }
@@ -82,6 +85,7 @@ static enum tpm2_result tpm2_fifo_request_locality(struct tpm2_chip *chip,
 {
 	const struct tpm2_ptp_phy_ops *ops = chip->phy_ops;
 	uint64_t timeout_ref = 0;
+	bool expired = false;
 	uint8_t buf = 0;
 	enum tpm2_result ret = TPM2_OK;
 
@@ -109,14 +113,16 @@ static enum tpm2_result tpm2_fifo_request_locality(struct tpm2_chip *chip,
 
 	timeout_ref = timeout_init_us(chip->timeout_a * 1000);
 	do {
+		expired = timeout_elapsed(timeout_ref);
 		/* keep trying to get one until timeout */
 		if (tpm2_fifo_check_locality(chip, loc)) {
 			chip->locality = loc;
 			return TPM2_OK;
 		}
 
-		mdelay(TPM2_TIMEOUT_RETRY_MS);
-	} while (!timeout_elapsed(timeout_ref));
+		if (!expired)
+			mdelay(TPM2_TIMEOUT_RETRY_MS);
+	} while (!expired);
 
 	return TPM2_ERR_NO_ACTIVE_LOCALITY;
 }
@@ -177,8 +183,10 @@ static enum tpm2_result tpm2_fifo_wait_for_status(struct tpm2_chip *chip,
 {
 	enum tpm2_result ret = TPM2_OK;
 	uint64_t timeout_ref = timeout_init_us(timeout_ms * 1000);
+	bool expired = false;
 
 	do {
+		expired = timeout_elapsed(timeout_ref);
 		ret = tpm2_fifo_get_status(chip, status);
 		if (ret)
 			return ret;
@@ -186,8 +194,9 @@ static enum tpm2_result tpm2_fifo_wait_for_status(struct tpm2_chip *chip,
 		if ((*status & mask) == mask)
 			return TPM2_OK;
 
-		mdelay(TPM2_TIMEOUT_RETRY_MS);
-	} while (!timeout_elapsed(timeout_ref));
+		if (!expired)
+			mdelay(TPM2_TIMEOUT_RETRY_MS);
+	} while (!expired);
 
 	return TPM2_ERR_TIMEOUT;
 }
@@ -198,6 +207,7 @@ static enum tpm2_result tpm2_fifo_get_burstcount(struct tpm2_chip *chip,
 	const struct tpm2_ptp_phy_ops *ops = chip->phy_ops;
 	uint32_t burst = 0;
 	uint64_t timeout_ref = 0;
+	bool expired = false;
 	enum tpm2_result ret = TPM2_OK;
 
 	if (chip->locality < 0)
@@ -206,6 +216,7 @@ static enum tpm2_result tpm2_fifo_get_burstcount(struct tpm2_chip *chip,
 	timeout_ref = timeout_init_us(chip->timeout_a * 1000);
 	/* wait for burstcount */
 	do {
+		expired = timeout_elapsed(timeout_ref);
 		ret = ops->rx32(chip, TPM2_STS(chip->locality), &burst);
 		if (ret)
 			return ret;
@@ -215,8 +226,9 @@ static enum tpm2_result tpm2_fifo_get_burstcount(struct tpm2_chip *chip,
 			return TPM2_OK;
 		}
 
-		mdelay(TPM2_TIMEOUT_RETRY_MS);
-	} while (!timeout_elapsed(timeout_ref));
+		if (!expired)
+			mdelay(TPM2_TIMEOUT_RETRY_MS);
+	} while (!expired);
 
 	return TPM2_ERR_TIMEOUT;
 }
