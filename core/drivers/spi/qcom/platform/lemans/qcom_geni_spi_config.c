@@ -275,6 +275,9 @@ const struct qup_spi_platform_cfg qup_spi_config[] = {
 		.pin_group_count    = ARRAY_SIZE(qup2_se2_spi_pin_groups),
 		.fw_image           = spi_qup_fw,
 		.fw_image_size      = sizeof(spi_qup_fw),
+		.core_icb_vote      = true,
+		.icb_master         = ICBID_MASTER_QUP_CORE_2,
+		.icb_slave          = ICBID_SLAVE_QUP_CORE_2,
 	},
 };
 

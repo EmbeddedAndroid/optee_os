@@ -6,6 +6,7 @@
 #ifndef DRIVERS_QCOM_GENI_SPI_H
 #define DRIVERS_QCOM_GENI_SPI_H
 
+#include <drivers/qcom/icb/icbid.h>
 #include <kernel/mutex.h>
 #include <mm/core_memprot.h>
 #include <spi.h>
@@ -62,6 +63,15 @@ struct qup_spi_data {
 	 * GENI SE firmware; gates re-running the load on repeat init calls.
 	 */
 	bool fw_loaded;
+	/*
+	 * Interconnect route of this SE's QUP core clock, from the platform
+	 * cfg (core_icb_vote false: no vote placed). The ICB client is
+	 * created and voted by qup_spi_init().
+	 */
+	bool core_icb_vote;
+	enum icbid_master icb_master;
+	enum icbid_slave icb_slave;
+	struct icb_client *icb;
 	/* Requested SPI bus clock in Hz, set before calling configure() */
 	unsigned int speed_hz;
 	enum spi_mode mode;
@@ -153,6 +163,13 @@ struct qup_spi_platform_cfg {
 	 */
 	const uint8_t *fw_image;
 	size_t fw_image_size;
+	/*
+	 * QUP core interconnect route (master/slave) to vote before the SE
+	 * is clocked, if core_icb_vote is set. Requires CFG_QCOM_ICB.
+	 */
+	bool core_icb_vote;
+	enum icbid_master icb_master;
+	enum icbid_slave icb_slave;
 };
 
 /* SoC-specific hardware descriptor defined per platform. */
