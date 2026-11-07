@@ -62,6 +62,23 @@ enum tpm2_result tpm2_chip_transceive(uint8_t locality, uint8_t *cmd,
 	return ret;
 }
 
+enum tpm2_result tpm2_chip_hash_sequence(const uint8_t *data, size_t len)
+{
+	enum tpm2_result ret = TPM2_OK;
+
+	if (!tpm2_device || !tpm2_device->ops->hash_sequence)
+		return TPM2_ERR_NODEV;
+
+	if (!data && len)
+		return TPM2_ERR_INVALID_ARG;
+
+	mutex_lock(&tpm2_chip_lock);
+	ret = tpm2_device->ops->hash_sequence(tpm2_device, data, len);
+	mutex_unlock(&tpm2_chip_lock);
+
+	return ret;
+}
+
 enum tpm2_result tpm2_chip_get_caps(struct tpm2_caps *capability)
 {
 	if (!tpm2_device)

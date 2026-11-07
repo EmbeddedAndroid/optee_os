@@ -85,6 +85,9 @@ struct tpm2_ptp_ops {
 				 uint8_t *buf, uint32_t len);
 	enum tpm2_result (*recv)(struct tpm2_chip *chip, uint8_t *buf,
 				 uint32_t *len, uint32_t cmd_duration);
+	/* Optional: locality 4 _TPM_Hash_Start/Data/End over @data */
+	enum tpm2_result (*hash_sequence)(struct tpm2_chip *chip,
+					  const uint8_t *data, size_t len);
 };
 
 /* Physical interface for PTP */
@@ -119,6 +122,13 @@ enum tpm2_result tpm2_chip_transceive(uint8_t locality, uint8_t *cmd,
 				      uint32_t cmd_len, uint8_t *resp,
 				      uint32_t *resp_len,
 				      uint32_t cmd_duration);
+
+/*
+ * Run the D-RTM hash sequence at locality 4 over @data: _TPM_Hash_Start
+ * resets PCRs 17 to 22 and _TPM_Hash_End extends PCR 17 with the digest of
+ * @data in every active bank. Only the secure world may call this.
+ */
+enum tpm2_result tpm2_chip_hash_sequence(const uint8_t *data, size_t len);
 
 enum tpm2_result tpm2_chip_get_caps(struct tpm2_caps *capability);
 bool tpm2_chip_is_active_bank(uint16_t alg);
