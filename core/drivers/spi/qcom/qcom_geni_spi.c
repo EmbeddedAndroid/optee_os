@@ -6,6 +6,7 @@
 #include <assert.h>
 #include <drivers/clk.h>
 #include <drivers/clk_qcom.h>
+#include <drivers/qcom/icb/icbuarb.h>
 #include <drivers/qcom/tlmm/tlmm.h>
 #include <drivers/qcom_geni_spi.h>
 #include <inttypes.h>
@@ -1302,6 +1303,9 @@ bool qup_spi_get_platform_data(unsigned int qup_spi_id,
 		qs->pin_group_count = qup_spi_config[i].pin_group_count;
 		qs->fw_image = qup_spi_config[i].fw_image;
 		qs->fw_image_size = qup_spi_config[i].fw_image_size;
+		qs->core_icb_vote = qup_spi_config[i].core_icb_vote;
+		qs->icb_master = qup_spi_config[i].icb_master;
+		qs->icb_slave = qup_spi_config[i].icb_slave;
 		DMSG("QUP SPI %u: base=%#" PRIxVA " irq=%zu se_clk=%s",
 		     qup_spi_id, qs->base, qs->itr_num, qs->se_clock_name);
 		return true;
@@ -1310,6 +1314,54 @@ bool qup_spi_get_platform_data(unsigned int qup_spi_id,
 	EMSG("QUP SPI: no platform data for SE id %u", qup_spi_id);
 	return false;
 }
+
+/*
+ * Bandwidth asked on the QUP core route, in bytes per second: Linux's
+ * geni-se votes GENI_DEFAULT_BW (1000 B/s) on its "qup-core" path. Any
+ * non-zero vote turns the QUP core clock on; without it the SE registers
+ * respond but nothing reaches the pads (an internal loopback passes while
+ * MISO reads back as 0).
+ */
+#define QUP_SPI_CORE_ICB_BW	1000
+
+#ifdef CFG_QCOM_ICB
+static TEE_Result qup_spi_icb_vote(struct qup_spi_data *qs)
+{
+	struct icb_bw_req req = {
+		.ab = QUP_SPI_CORE_ICB_BW,
+		.ib = QUP_SPI_CORE_ICB_BW,
+	};
+
+	if (!qs->core_icb_vote || qs->icb)
+		return TEE_SUCCESS;
+
+	qs->icb = icbuarb_create_client(qs->icb_master, qs->icb_slave);
+	if (!qs->icb) {
+		EMSG("QUP SPI %u: no ICB route %d -> %d", qs->id,
+		     qs->icb_master, qs->icb_slave);
+		return TEE_ERROR_ITEM_NOT_FOUND;
+	}
+
+	if (!icbuarb_issue_request(qs->icb, &req)) {
+		EMSG("QUP SPI %u: ICB vote failed", qs->id);
+		icbuarb_destroy_client(qs->icb);
+		qs->icb = NULL;
+		return TEE_ERROR_GENERIC;
+	}
+
+	return TEE_SUCCESS;
+}
+#else
+static TEE_Result qup_spi_icb_vote(struct qup_spi_data *qs)
+{
+	if (qs->core_icb_vote) {
+		EMSG("QUP SPI %u: core ICB vote needs CFG_QCOM_ICB", qs->id);
+		return TEE_ERROR_NOT_SUPPORTED;
+	}
+
+	return TEE_SUCCESS;
+}
+#endif
 
 TEE_Result qup_spi_init(struct qup_spi_data *qs, unsigned int qup_spi_id)
 {
@@ -1338,12 +1390,18 @@ TEE_Result qup_spi_init(struct qup_spi_data *qs, unsigned int qup_spi_id)
 	qs->tx_rem_bytes = 0;
 	qs->rx_rem_bytes = 0;
 	qs->bytes_per_word = 0;
+	qs->icb = NULL;
 
 	if (!qup_spi_get_platform_data(qup_spi_id, qs))
 		return TEE_ERROR_ITEM_NOT_FOUND;
 
 	qs->chip.ops = &qup_spi_ops;
 	mutex_init(&qs->lock);
+
+	/* The core route must carry the clock before the SE is ungated */
+	res = qup_spi_icb_vote(qs);
+	if (res)
+		return res;
 
 	res = qup_spi_clk_setup(qs);
 	if (res)
