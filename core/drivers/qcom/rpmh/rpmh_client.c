@@ -12,6 +12,7 @@
 #include <kernel/delay.h>
 #include <kernel/mutex.h>
 #include <kernel/panic.h>
+#include <malloc.h>
 #include <mm/core_memprot.h>
 #include <mm/core_mmu.h>
 #include <platform_config.h>
@@ -71,7 +72,7 @@ struct aop_msg_ram_dict {
 	uint32_t reserved_addrs[14];
 };
 
-static struct rpmh_driver_data driver_state = {
+static struct rpmh_driver_data driver_state __nex_data = {
 	.lock = MUTEX_INITIALIZER,
 };
 
@@ -160,7 +161,7 @@ static struct client *create_client(enum rsc_drv_id drv_id,
 	if (client)
 		return client;
 
-	client = calloc(1, sizeof(struct client));
+	client = nex_calloc(1, sizeof(struct client));
 	if (!client)
 		return NULL;
 
@@ -267,7 +268,7 @@ static TEE_Result rpmh_client_init(void)
 		goto err_panic;
 	}
 
-	driver_state.queue = calloc(1, sizeof(struct client_queue));
+	driver_state.queue = nex_calloc(1, sizeof(struct client_queue));
 	if (!driver_state.queue) {
 		EMSG("Failed to allocate client queue");
 		goto err_panic;
@@ -338,4 +339,4 @@ out:
 	return res;
 }
 
-early_init(rpmh_client_init);
+nex_early_init(rpmh_client_init);

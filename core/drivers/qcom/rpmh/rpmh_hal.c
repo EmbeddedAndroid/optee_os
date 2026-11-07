@@ -4,12 +4,13 @@
  */
 
 #include <assert.h>
+#include <compiler.h>
 #include <io.h>
 #include <util.h>
 
 #include "rpmh_hal.h"
 
-static vaddr_t rsc_base;
+static vaddr_t rsc_base __nex_bss;
 
 static inline vaddr_t get_tcs_base(uint32_t tcs_id)
 {
