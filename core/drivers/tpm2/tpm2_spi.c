@@ -38,8 +38,9 @@
 /* Wait-state flow control: MISO LSB set means the TPM is ready */
 #define TPM2_SPI_WAIT_STATE_RDY	BIT(0)
 
-/* Number of wait-state polling bytes before giving up */
-#define TPM2_SPI_WAIT_RETRIES	50
+/* Wait-state polls back to back, then 1 ms apart up to the timeout */
+#define TPM2_SPI_WAIT_FAST_POLLS	50
+#define TPM2_SPI_WAIT_TIMEOUT_US	250000
 
 /*
  * Power-on readiness probes at init. On a cold boot the TPM can still be
@@ -87,20 +88,23 @@ static enum tpm2_result tpm2_spi_data(struct spi_chip *chip, bool read,
  * TIS flow control: the TPM may stall between the header and the data phase.
  * first_status is the MISO byte returned with the last header byte; if it is
  * not ready, poll one byte at a time (CS held) until the ready bit appears or
- * TPM2_SPI_WAIT_RETRIES is exhausted.
+ * TPM2_SPI_WAIT_TIMEOUT_US has passed.
  */
 static enum tpm2_result tpm2_spi_wait_ready(struct spi_chip *chip,
 					    uint8_t first_status)
 {
-	unsigned int retries = 0;
+	uint64_t timeout_ref = timeout_init_us(TPM2_SPI_WAIT_TIMEOUT_US);
+	unsigned int polls = 0;
+	bool expired = false;
 
 	if (first_status & TPM2_SPI_WAIT_STATE_RDY)
 		return TPM2_OK;
 
-	for (retries = 0; retries < TPM2_SPI_WAIT_RETRIES; retries++) {
+	do {
 		uint8_t tx = 0;
 		uint8_t rx = 0;
 
+		expired = timeout_elapsed(timeout_ref);
 		if (chip->ops->txrx8(chip, &tx, &rx, 1) != SPI_OK) {
 			EMSG("TPM2 SPI: wait-state transfer failed");
 			return TPM2_ERR_IO;
@@ -109,11 +113,12 @@ static enum tpm2_result tpm2_spi_wait_ready(struct spi_chip *chip,
 		if (rx & TPM2_SPI_WAIT_STATE_RDY)
 			return TPM2_OK;
 
-		mdelay(TPM2_TIMEOUT_RETRY_MS);
-	}
+		/* Back to back first, then let a long wait state run */
+		if (++polls >= TPM2_SPI_WAIT_FAST_POLLS && !expired)
+			mdelay(1);
+	} while (!expired);
 
-	EMSG("TPM2 SPI: wait-state never asserted after %u polls",
-	     TPM2_SPI_WAIT_RETRIES);
+	EMSG("TPM2 SPI: wait state not released after %u polls", polls);
 
 	return TPM2_ERR_TIMEOUT;
 }
