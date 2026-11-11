@@ -6,6 +6,12 @@
 #ifndef SECA_TARGET_CONFIG_H
 #define SECA_TARGET_CONFIG_H
 
+/* Two of the four Nord NSPs and two of the three HPASS DSPs remain. */
+#define CDSP_COUNT			2
+#define HPASS_Q6_COUNT			2
+
+#define DTB_CHIP_FAMILY_ID		0x00af02e6
+
 /* SecaAU keeps the Nord address map for everything OP-TEE uses. */
 #include "../nord/target_config.h"
 
