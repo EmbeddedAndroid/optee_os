@@ -3,6 +3,7 @@
  * Copyright (c) 2026, Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
+#include <assert.h>
 #include <drivers/clk.h>
 #include <drivers/clk_qcom.h>
 #include <io.h>
@@ -12,6 +13,7 @@
 #include <platform_config.h>
 #include <stdint.h>
 #include <trace.h>
+#include <util.h>
 
 #include "clock_group.h"
 
@@ -469,6 +471,30 @@ retry:
 	return TEE_SUCCESS;
 }
 
+static const struct {
+	paddr_t base;
+	size_t size;
+	uint32_t xo_cbcr;
+} hpass_q6[] = {
+	{ HPASS_0_BASE, HPASS_0_SIZE, HPASS_CC_Q6DSPSS0_XO_CBCR },
+	{ HPASS_1_BASE, HPASS_1_SIZE, HPASS_CC_Q6DSPSS1_XO_CBCR },
+	{ HPASS_2_BASE, HPASS_2_SIZE, HPASS_CC_Q6DSPSS2_XO_CBCR },
+};
+
+static_assert(HPASS_Q6_COUNT <= ARRAY_SIZE(hpass_q6));
+
+static void hpass_q6_set_ret_cfg(uint32_t val)
+{
+	unsigned int i = 0;
+
+	for (i = 0; i < HPASS_Q6_COUNT; i++) {
+		struct io_pa_va io = { .pa = hpass_q6[i].base };
+
+		io_write32(io_pa_or_va(&io, hpass_q6[i].size) +
+			   HPASS_QDSP6SS_RET_CFG, val);
+	}
+}
+
 static TEE_Result hpass_reset_processor(void)
 {
 	struct io_pa_va cc_io = { .pa = HPASS_CC_BASE };
@@ -477,12 +503,6 @@ static TEE_Result hpass_reset_processor(void)
 	vaddr_t tcsr = io_pa_or_va(&tcsr_io, TCSR_MUTEX_SIZE);
 	struct io_pa_va hpass_tcsr_io = { .pa = HPASS_TCSR_BASE };
 	vaddr_t hpass_tcsr = io_pa_or_va(&hpass_tcsr_io, HPASS_TCSR_SIZE);
-	struct io_pa_va h0_io = { .pa = HPASS_0_BASE };
-	struct io_pa_va h1_io = { .pa = HPASS_1_BASE };
-	struct io_pa_va h2_io = { .pa = HPASS_2_BASE };
-	vaddr_t h0 = io_pa_or_va(&h0_io, HPASS_0_SIZE);
-	vaddr_t h1 = io_pa_or_va(&h1_io, HPASS_1_SIZE);
-	vaddr_t h2 = io_pa_or_va(&h2_io, HPASS_2_SIZE);
 	struct io_pa_va pdc_io = { .pa = RPMH_PDC_GLOBAL_BASE };
 	vaddr_t pdc_global = io_pa_or_va(&pdc_io, RPMH_PDC_GLOBAL_SIZE);
 	struct io_pa_va aoss_io = { .pa = AOSS_CC_BASE };
@@ -491,50 +511,27 @@ static TEE_Result hpass_reset_processor(void)
 	uint32_t i = 0;
 	TEE_Result res = TEE_SUCCESS;
 
-	io_clrbits32(cc + HPASS_CC_Q6DSPSS0_XO_CBCR,
-		     Q6DSPSS_XO_CBCR_IGNORE_ALL_CLK_DIS_BIT);
-	io_clrbits32(cc + HPASS_CC_Q6DSPSS1_XO_CBCR,
-		     Q6DSPSS_XO_CBCR_IGNORE_ALL_CLK_DIS_BIT);
-	io_clrbits32(cc + HPASS_CC_Q6DSPSS2_XO_CBCR,
-		     Q6DSPSS_XO_CBCR_IGNORE_ALL_CLK_DIS_BIT);
+	for (i = 0; i < HPASS_Q6_COUNT; i++)
+		io_clrbits32(cc + hpass_q6[i].xo_cbcr,
+			     Q6DSPSS_XO_CBCR_IGNORE_ALL_CLK_DIS_BIT);
 
-	io_write32(h0 + HPASS_QDSP6SS_RET_CFG, 0x3);
-	io_write32(h1 + HPASS_QDSP6SS_RET_CFG, 0x3);
-	io_write32(h2 + HPASS_QDSP6SS_RET_CFG, 0x3);
+	hpass_q6_set_ret_cfg(0x3);
 
-	for (i = 0; i <= HPASS_ALT_RESET_Q6SS_n_MAXN; i++)
+	for (i = 0; i < HPASS_Q6_COUNT; i++)
 		io_setbits32(hpass_tcsr + HPASS_ALT_RESET_Q6SS_n(i),
 			     HPASS_ALT_ARES_ENABLE_BIT);
 
 	/* Isolate each Q6 master bus interface and wait for its halt ACK. */
-	io_setbits32(tcsr + TCSR_HPASS_HALTREQ,
-		     TCSR_HPASS_Q6SS_0_BUSM_HALTREQ_BIT);
-	timeout = timeout_init_us(200000 * 5);
-	while (!(io_read32(tcsr + TCSR_HPASS_HALTACK) &
-		 TCSR_HPASS_Q6SS_0_BUSM_HALTACK_BIT)) {
-		if (timeout_elapsed(timeout))
-			return TEE_ERROR_TIMEOUT;
-		udelay(5);
-	}
-
-	io_setbits32(tcsr + TCSR_HPASS_HALTREQ,
-		     TCSR_HPASS_Q6SS_1_BUSM_HALTREQ_BIT);
-	timeout = timeout_init_us(200000 * 5);
-	while (!(io_read32(tcsr + TCSR_HPASS_HALTACK) &
-		 TCSR_HPASS_Q6SS_1_BUSM_HALTACK_BIT)) {
-		if (timeout_elapsed(timeout))
-			return TEE_ERROR_TIMEOUT;
-		udelay(5);
-	}
-
-	io_setbits32(tcsr + TCSR_HPASS_HALTREQ,
-		     TCSR_HPASS_Q6SS_2_BUSM_HALTREQ_BIT);
-	timeout = timeout_init_us(200000 * 5);
-	while (!(io_read32(tcsr + TCSR_HPASS_HALTACK) &
-		 TCSR_HPASS_Q6SS_2_BUSM_HALTACK_BIT)) {
-		if (timeout_elapsed(timeout))
-			return TEE_ERROR_TIMEOUT;
-		udelay(5);
+	for (i = 0; i < HPASS_Q6_COUNT; i++) {
+		io_setbits32(tcsr + TCSR_HPASS_HALTREQ,
+			     TCSR_HPASS_Q6SS_n_BUSM_HALTREQ_BIT(i));
+		timeout = timeout_init_us(200000 * 5);
+		while (!(io_read32(tcsr + TCSR_HPASS_HALTACK) &
+			 TCSR_HPASS_Q6SS_n_BUSM_HALTACK_BIT(i))) {
+			if (timeout_elapsed(timeout))
+				return TEE_ERROR_TIMEOUT;
+			udelay(5);
+		}
 	}
 
 	/* Clear the HPASS TCSR mutex registers before proceeding. */
@@ -603,9 +600,7 @@ static TEE_Result hpass_reset_processor(void)
 		     HPASS_RESTART_SS_RESTART_BIT);
 	udelay(100);
 
-	io_write32(h0 + HPASS_QDSP6SS_RET_CFG, 0);
-	io_write32(h1 + HPASS_QDSP6SS_RET_CFG, 0);
-	io_write32(h2 + HPASS_QDSP6SS_RET_CFG, 0);
+	hpass_q6_set_ret_cfg(0);
 
 	return TEE_SUCCESS;
 }

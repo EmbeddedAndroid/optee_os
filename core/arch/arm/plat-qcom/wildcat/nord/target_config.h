@@ -74,6 +74,11 @@
 #define HPASS_2_BASE			UL(0x06100000)
 #define HPASS_2_SIZE			UL(0x00100000)
 
+/* Q6 DSPs in the HPASS audio subsystem */
+#ifndef HPASS_Q6_COUNT
+#define HPASS_Q6_COUNT			3
+#endif
+
 #define RPMH_PDC_GLOBAL_BASE		UL(0x0b5e6000)
 #define RPMH_PDC_GLOBAL_SIZE		UL(0x0000a000)
 
