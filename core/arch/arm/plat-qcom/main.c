@@ -10,6 +10,7 @@
 #include <drivers/qcom_geni_uart.h>
 #include <kernel/boot.h>
 #include <mm/core_mmu.h>
+#include <mm/mobj.h>
 #include <platform_config.h>
 #include <qcom_common.h>
 
@@ -83,3 +84,22 @@ void boot_secondary_init_intc(void)
 	gic_init_per_cpu();
 	qcom_gicv2_el3_intr_delegation_init_per_cpu();
 }
+
+#if defined(CFG_CORE_DYN_PROTMEM)
+/*
+ * Secure video needs the bitstream, the decoded frames and the codec's
+ * internal buffers in one lent block: size it for the platform instead
+ * of the 1 MiB default.
+ */
+TEE_Result plat_get_protmem_config(enum mobj_use_case use_case,
+				   size_t *min_mem_sz, size_t *min_mem_align)
+{
+	if (use_case != MOBJ_USE_CASE_SEC_VIDEO_PLAY)
+		return TEE_ERROR_BAD_PARAMETERS;
+
+	*min_mem_sz = CFG_QCOM_PROTMEM_SIZE;
+	*min_mem_align = SMALL_PAGE_SIZE;
+
+	return TEE_SUCCESS;
+}
+#endif

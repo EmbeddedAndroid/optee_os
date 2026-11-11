@@ -20,6 +20,8 @@ $(call force,CFG_CRYPTO_WITH_CE,y)
 $(call force,CFG_HW_UNIQUE_KEY_LENGTH,32)
 
 CFG_QCOM_GENI_UART ?= y
+# Size of the block lent at the first protected memory allocation
+CFG_QCOM_PROTMEM_SIZE ?= 0x100000
 
 # The GENI UART is shared with the Linux kernel and an excessively long
 # wait period may lead to RCU stall warnings depending on system load.
