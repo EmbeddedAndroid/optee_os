@@ -100,6 +100,11 @@
 #define CDSP_3_BASE			UL(0x1fcc8000)
 #define CDSP_3_SIZE			UL(0x00280000)
 
+/* NSP compute DSPs (CDSP) */
+#ifndef CDSP_COUNT
+#define CDSP_COUNT			4
+#endif
+
 #define FUSE_CONTROLLER_SW_RANGE4_BASE	UL(0x360d4000)
 #define FUSE_CONTROLLER_SW_RANGE4_SIZE	UL(0x00001000)
 

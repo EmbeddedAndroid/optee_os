@@ -53,6 +53,7 @@ static struct qcom_pas_subsys subsystems[] = {
 		.ops = &nspss1_ops,
 		.reset_seq = QCOM_PAS_RESET_CLK_FULL,
 	},
+#if CDSP_COUNT > 2
 	{
 		.data = {
 			.pas_id = DTB_ID_TURING2,
@@ -73,6 +74,8 @@ static struct qcom_pas_subsys subsystems[] = {
 		.ops = &nspss2_ops,
 		.reset_seq = QCOM_PAS_RESET_CLK_FULL,
 	},
+#endif
+#if CDSP_COUNT > 3
 	{
 		.data = {
 			.pas_id = DTB_ID_TURING3,
@@ -93,6 +96,7 @@ static struct qcom_pas_subsys subsystems[] = {
 		.ops = &nspss3_ops,
 		.reset_seq = QCOM_PAS_RESET_CLK_FULL,
 	},
+#endif
 	{
 		.data = {
 			.pas_id = DTB_ID_HPASS0,
@@ -133,6 +137,7 @@ static struct qcom_pas_subsys subsystems[] = {
 		.ops = &hpass1_ops,
 		.reset_seq = QCOM_PAS_RESET_CLK_FULL,
 	},
+#if HPASS_Q6_COUNT > 2
 	{
 		.data = {
 			.pas_id = DTB_ID_HPASS2,
@@ -153,6 +158,7 @@ static struct qcom_pas_subsys subsystems[] = {
 		.ops = &hpass2_ops,
 		.reset_seq = QCOM_PAS_RESET_CLK_FULL,
 	},
+#endif
 };
 
 struct qcom_pas_subsys *qcom_pas_platform_subsys(size_t *count)
