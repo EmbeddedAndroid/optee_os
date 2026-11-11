@@ -103,6 +103,11 @@
 #define FUSE_CONTROLLER_SW_RANGE4_BASE	UL(0x360d4000)
 #define FUSE_CONTROLLER_SW_RANGE4_SIZE	UL(0x00001000)
 
+/* Chip family and SoC ID the DSP device tree images are selected on */
+#ifndef DTB_CHIP_FAMILY_ID
+#define DTB_CHIP_FAMILY_ID		0x009c0288
+#endif
+
 #define DRAM0_BASE			UL(0x80000000)
 #define DRAM0_SIZE                     UL(0x80000000)
 #define DRAM1_BASE                     ULL(0x880000000)
