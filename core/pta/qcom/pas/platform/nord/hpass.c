@@ -38,6 +38,17 @@
 #define DTB_CONFIG_3_REG			0x6c
 #define DTB_CONFIG_5_REG			0x74
 
+/*
+ * A SoC derived from Nord can grant its HPASS DSPs register windows beyond
+ * the Nord ones; its target_config.h appends them through these.
+ */
+#ifndef HPASS0_TARGET_MEM_RES
+#define HPASS0_TARGET_MEM_RES
+#endif
+#ifndef HPASS1_TARGET_MEM_RES
+#define HPASS1_TARGET_MEM_RES
+#endif
+
 /* Per-instance resource tables, filled in later per instance. */
 static const struct fw_rsc_devmem hpass0_mem_res[] = {
 	{ .name = "gcc_gpll0", .flags = IOMMU_READ,
@@ -294,6 +305,7 @@ static const struct fw_rsc_devmem hpass0_mem_res[] = {
      */
 	{ .name = "smem", .flags = IOMMU_READ | IOMMU_WRITE,
 		.da = 0x89B00000, .pa = 0x89B00000, .len = 0x400000, },
+	HPASS0_TARGET_MEM_RES
 };
 
 static const struct fw_rsc_devmem hpass1_mem_res[] = {
@@ -529,6 +541,7 @@ static const struct fw_rsc_devmem hpass1_mem_res[] = {
      */
 	{ .name = "smem", .flags = IOMMU_READ | IOMMU_WRITE,
 		.da = 0x89B00000, .pa = 0x89B00000, .len = 0x400000, },
+	HPASS1_TARGET_MEM_RES
 };
 
 static const struct fw_rsc_devmem hpass2_mem_res[] = {
