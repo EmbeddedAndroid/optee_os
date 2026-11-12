@@ -3,4 +3,6 @@
 
 srcs-$(CFG_QCOM_TLMM) += gpio.c
 srcs-$(CFG_QCOM_TLMM) += pinctrl.c
-srcs-$(CFG_QCOM_TLMM) += $(PLATFORM_FLAVOR)/tlmm_soc_data.c
+# A SoC sharing another's TLMM sets QCOM_TLMM_SOC to that SoC.
+QCOM_TLMM_SOC ?= $(PLATFORM_FLAVOR)
+srcs-$(CFG_QCOM_TLMM) += $(QCOM_TLMM_SOC)/tlmm_soc_data.c
