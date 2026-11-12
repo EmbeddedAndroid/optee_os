@@ -21,6 +21,7 @@
  */
 #define GICR_COUNT			18
 
+#include "cdsp_mem_res.h"
 #include "hpass_mem_res.h"
 
 #endif /* SECA_TARGET_CONFIG_H */
