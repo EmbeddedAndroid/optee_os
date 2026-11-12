@@ -2,10 +2,10 @@
 /*
  * Copyright (c) 2026, Qualcomm Technologies, Inc. and/or its subsidiaries.
  *
- * Nord (Oryon "NCC") get_core_pos override.
+ * Nord and SecaAU (Oryon "NCC") get_core_pos override.
  *
  * Oryon MPIDR has the MT bit set but uses one thread per core with
- * AFF0 = thread (always 0), AFF1 = core (0..5), AFF2 = cluster (0..2).
+ * AFF0 = thread (always 0), AFF1 = core (0..5), AFF2 = cluster.
  * The generic get_core_pos_mpidr left-shifts the MPIDR by one affinity
  * level when MT is set; on this layout that promotes the CORE into the
  * cluster slot and drops the real cluster, collapsing all clusters to the
@@ -13,7 +13,7 @@
  * 8/12/16/20, exceeding CFG_TEE_CORE_NB_CORE and getting their GIC
  * redistributors skipped -> secondaries crash). Read AFF1/AFF2 from the
  * raw MPIDR instead and produce a contiguous CorePos = cluster*6 + core
- * (0..17) for the 3 x 6 topology.
+ * for clusters of six cores.
  */
 
 #include <asm.S>

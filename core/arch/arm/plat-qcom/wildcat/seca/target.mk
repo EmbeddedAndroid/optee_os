@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: BSD-2-Clause
+# Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+
+# SecaAU (QAM8787P): a Nord with two of its three Oryon clusters.
+
+$(call force,CFG_TEE_CORE_NB_CORE,12)
+
+CFG_TZDRAM_START ?= 0xBC280000
+CFG_TEE_RAM_VA_SIZE ?= 0x00200000
+CFG_TA_RAM_VA_SIZE ?= 0x07B80000
+
+CFG_QCOM_RPMH_CLIENT ?= y
+ifeq ($(CFG_QCOM_RPMH_CLIENT),y)
+$(call force,CFG_QCOM_CMD_DB,y)
+endif
+
+CFG_QCOM_TLMM ?= y
+QCOM_TLMM_SOC := nord

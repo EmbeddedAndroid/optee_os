@@ -227,6 +227,7 @@ jobs:
               _make PLATFORM=qcom-ipq96xx
               _make PLATFORM=qcom-ipq52xx
               _make PLATFORM=qcom-nord
+              _make PLATFORM=qcom-seca
               _make PLATFORM=qcom-shikra
               _make PLATFORM=qcom-agatti
               _make PLATFORM=qcom-cacao
