@@ -6,11 +6,13 @@
 #include <assert.h>
 #include <drivers/clk.h>
 #include <drivers/clk_qcom.h>
+#include <inttypes.h>
 #include <io.h>
 #include <kernel/delay.h>
 #include <mm/core_memprot.h>
 #include <mm/core_mmu.h>
 #include <platform_config.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <trace.h>
 #include <util.h>
@@ -394,11 +396,90 @@ static const struct qcom_pll_config hpass0_q6_pll_cfg = {
 	.test_ctl_u2 = 0x00000034,
 };
 
-static TEE_Result hpass_enable_processor_0(void)
+static const struct {
+	paddr_t base;
+	size_t size;
+	uint32_t xo_cbcr;
+} hpass_q6[] = {
+	{ HPASS_0_BASE, HPASS_0_SIZE, HPASS_CC_Q6DSPSS0_XO_CBCR },
+	{ HPASS_1_BASE, HPASS_1_SIZE, HPASS_CC_Q6DSPSS1_XO_CBCR },
+	{ HPASS_2_BASE, HPASS_2_SIZE, HPASS_CC_Q6DSPSS2_XO_CBCR },
+};
+
+static_assert(HPASS_Q6_COUNT <= ARRAY_SIZE(hpass_q6));
+
+static vaddr_t hpass_q6_va(unsigned int idx)
 {
-	struct io_pa_va io = { .pa = HPASS_0_BASE };
-	vaddr_t v = io_pa_or_va(&io, HPASS_0_SIZE);
+	struct io_pa_va io = { .pa = hpass_q6[idx].base };
+
+	return io_pa_or_va(&io, hpass_q6[idx].size);
+}
+
+static vaddr_t hpass_tcsr_va(void)
+{
+	struct io_pa_va io = { .pa = HPASS_TCSR_BASE };
+
+	return io_pa_or_va(&io, HPASS_TCSR_SIZE);
+}
+
+/* Program a Q6SS core clock (PLL, ACMU, RCG) while it waits at auto-break. */
+static TEE_Result hpass_q6_core_clock(vaddr_t v,
+				      const struct qcom_pll_config *pll,
+				      uint32_t rcg_cfg)
+{
+	vaddr_t core_cc = v + HPASS_QDSP6SS_CORE_CC_OFFSET;
+	TEE_Result res = TEE_SUCCESS;
+
+	io_setbits32(core_cc + HPASS_QDSP6SS_CORE_CBCR,
+		     QDSP6SS_CORE_CBCR_CLK_ENABLE_BIT);
+
+	io_setbits32(core_cc + HPASS_QDSP6SS_CORE_PLL_ACMU,
+		     CORE_PLL_ACMU_CMON_FREQ_INVALID_BIT);
+
+	res = qcom_lucidole_pll_enable(v + HPASS_QDSP6SS_PLL_OFFSET, pll);
+	if (res != TEE_SUCCESS)
+		return res;
+
+	io_mask32(core_cc + HPASS_QDSP6SS_CORE_PLL_ACMU,
+		  pll->l_val * 10,
+		  CORE_PLL_ACMU_CMON_FREQ_VAL_MASK);
+	io_clrbits32(core_cc + HPASS_QDSP6SS_CORE_PLL_ACMU,
+		     CORE_PLL_ACMU_CMON_FREQ_INVALID_BIT);
+
+	return qcom_clock_set_rate(core_cc + HPASS_QDSP6SS_CORE_CFG_RCGR,
+				   core_cc + HPASS_QDSP6SS_CORE_CMD_RCGR,
+				   rcg_cfg);
+}
+
+/*
+ * A secondary Q6SS stops at the HPASS hardware auto-break; the primary DSP
+ * firmware programs its core clock and sets HW_RESUME at cold boot.
+ */
+static TEE_Result hpass_enable_secondary(unsigned int idx)
+{
+	vaddr_t v = hpass_q6_va(idx);
+
+	io_setbits32(v + HPASS_QDSP6SS_BOOT_CORE_START,
+		     QDSP6SS_BOOT_CORE_START_START_BIT);
+	io_write32(v + HPASS_QDSP6SS_BOOT_CMD, 1);
+
+	return TEE_SUCCESS;
+}
+
+/*
+ * Q6SS_0 resumes from the software auto-break hpass_setup() left it in.
+ * The other Q6SS stop at the HPASS hardware auto-break, where the primary
+ * DSP (Q6SS_0) firmware configures them and sets HW_RESUME, so they only
+ * start while the primary DSP runs; the remote processor driver's
+ * handover timeout reports one that never does.
+ */
+static TEE_Result hpass_enable_processor(unsigned int idx)
+{
+	vaddr_t v = hpass_q6_va(idx);
 	uint64_t timeout = timeout_init_us(200000 * 5);
+
+	if (idx)
+		return hpass_enable_secondary(idx);
 
 	io_write32(v + HPASS_QDSP6SS_BOOT_RESUME_CMD, 1);
 
@@ -410,30 +491,6 @@ static TEE_Result hpass_enable_processor_0(void)
 	}
 
 	return TEE_ERROR_TIMEOUT;
-}
-
-static TEE_Result hpass_enable_processor_1(void)
-{
-	struct io_pa_va io = { .pa = HPASS_1_BASE };
-	vaddr_t v = io_pa_or_va(&io, HPASS_1_SIZE);
-
-	io_setbits32(v + HPASS_QDSP6SS_BOOT_CORE_START,
-		     QDSP6SS_BOOT_CORE_START_START_BIT);
-	io_write32(v + HPASS_QDSP6SS_BOOT_CMD, 1);
-
-	return TEE_SUCCESS;
-}
-
-static TEE_Result hpass_enable_processor_2(void)
-{
-	struct io_pa_va io = { .pa = HPASS_2_BASE };
-	vaddr_t v = io_pa_or_va(&io, HPASS_2_SIZE);
-
-	io_setbits32(v + HPASS_QDSP6SS_BOOT_CORE_START,
-		     QDSP6SS_BOOT_CORE_START_START_BIT);
-	io_write32(v + HPASS_QDSP6SS_BOOT_CMD, 1);
-
-	return TEE_SUCCESS;
 }
 
 static TEE_Result hpass_noc_quiesce(vaddr_t tcsr, uint32_t qreqn_bit,
@@ -471,31 +528,20 @@ retry:
 	return TEE_SUCCESS;
 }
 
-static const struct {
-	paddr_t base;
-	size_t size;
-	uint32_t xo_cbcr;
-} hpass_q6[] = {
-	{ HPASS_0_BASE, HPASS_0_SIZE, HPASS_CC_Q6DSPSS0_XO_CBCR },
-	{ HPASS_1_BASE, HPASS_1_SIZE, HPASS_CC_Q6DSPSS1_XO_CBCR },
-	{ HPASS_2_BASE, HPASS_2_SIZE, HPASS_CC_Q6DSPSS2_XO_CBCR },
-};
-
-static_assert(HPASS_Q6_COUNT <= ARRAY_SIZE(hpass_q6));
-
 static void hpass_q6_set_ret_cfg(uint32_t val)
 {
 	unsigned int i = 0;
 
-	for (i = 0; i < HPASS_Q6_COUNT; i++) {
-		struct io_pa_va io = { .pa = hpass_q6[i].base };
-
-		io_write32(io_pa_or_va(&io, hpass_q6[i].size) +
-			   HPASS_QDSP6SS_RET_CFG, val);
-	}
+	for (i = 0; i < HPASS_Q6_COUNT; i++)
+		io_write32(hpass_q6_va(i) + HPASS_QDSP6SS_RET_CFG, val);
 }
 
-static TEE_Result hpass_reset_processor(void)
+/*
+ * Restart the whole HPASS. With force set, a Q6 that does not ack its bus
+ * halt (the case the per-Q6 reset falls back here for) does not stop the
+ * restart; otherwise the halt requests are withdrawn and the call fails.
+ */
+static TEE_Result hpass_reset_ss(bool force)
 {
 	struct io_pa_va cc_io = { .pa = HPASS_CC_BASE };
 	vaddr_t cc = io_pa_or_va(&cc_io, HPASS_CC_SIZE);
@@ -517,9 +563,12 @@ static TEE_Result hpass_reset_processor(void)
 
 	hpass_q6_set_ret_cfg(0x3);
 
-	for (i = 0; i < HPASS_Q6_COUNT; i++)
+	for (i = 0; i < HPASS_Q6_COUNT; i++) {
+		io_clrbits32(hpass_tcsr + HPASS_ALT_RESET_Q6SS_n(i),
+			     HPASS_ALT_ARES_PER_DSP_BIT);
 		io_setbits32(hpass_tcsr + HPASS_ALT_RESET_Q6SS_n(i),
 			     HPASS_ALT_ARES_ENABLE_BIT);
+	}
 
 	/* Isolate each Q6 master bus interface and wait for its halt ACK. */
 	for (i = 0; i < HPASS_Q6_COUNT; i++) {
@@ -529,9 +578,18 @@ static TEE_Result hpass_reset_processor(void)
 		while (!(io_read32(tcsr + TCSR_HPASS_HALTACK) &
 			 TCSR_HPASS_Q6SS_n_BUSM_HALTACK_BIT(i))) {
 			if (timeout_elapsed(timeout))
-				return TEE_ERROR_TIMEOUT;
+				break;
 			udelay(5);
 		}
+		if (io_read32(tcsr + TCSR_HPASS_HALTACK) &
+		    TCSR_HPASS_Q6SS_n_BUSM_HALTACK_BIT(i))
+			continue;
+		if (!force) {
+			io_write32(tcsr + TCSR_HPASS_HALTREQ, 0);
+			hpass_q6_set_ret_cfg(0);
+			return TEE_ERROR_TIMEOUT;
+		}
+		EMSG("HPASS Q6 %"PRIu32": no bus halt ack, restarting anyway", i);
 	}
 
 	/* Clear the HPASS TCSR mutex registers before proceeding. */
@@ -605,16 +663,132 @@ static TEE_Result hpass_reset_processor(void)
 	return TEE_SUCCESS;
 }
 
-static TEE_Result hpass_setup_0(void)
+/*
+ * Reset one HPASS Q6 while the others keep running: halt its bus master,
+ * then pulse its own reset through TCSR_HPASS_AUDIO_RESET_CTL, which
+ * reaches the Q6SS alt_ares only while ALT_ARES_ENABLE_FOR_PER_DSP_ARES
+ * is set. The AOSS HPASS restart would take every Q6 down with it.
+ */
+static TEE_Result hpass_reset_dsp(unsigned int idx)
 {
-	struct io_pa_va io = { .pa = HPASS_0_BASE };
-	vaddr_t v = io_pa_or_va(&io, HPASS_0_SIZE);
-	vaddr_t core_cc = v + HPASS_QDSP6SS_CORE_CC_OFFSET;
+	struct io_pa_va cc_io = { .pa = HPASS_CC_BASE };
+	vaddr_t cc = io_pa_or_va(&cc_io, HPASS_CC_SIZE);
+	struct io_pa_va tcsr_io = { .pa = TCSR_MUTEX_BASE };
+	vaddr_t tcsr = io_pa_or_va(&tcsr_io, TCSR_MUTEX_SIZE);
+	vaddr_t hpass_tcsr = hpass_tcsr_va();
+	vaddr_t v = hpass_q6_va(idx);
+	uint32_t halt_bit = TCSR_HPASS_Q6SS_n_BUSM_HALTREQ_BIT(idx);
+	uint64_t timeout = 0;
+
+	io_clrbits32(cc + hpass_q6[idx].xo_cbcr,
+		     Q6DSPSS_XO_CBCR_IGNORE_ALL_CLK_DIS_BIT);
+	io_write32(v + HPASS_QDSP6SS_RET_CFG, 0x3);
+	/*
+	 * Route the per-DSP reset to this Q6 and leave it routed: the reset
+	 * control bits are idle outside the pulse below, and
+	 * hpass_reset_ss() takes the routing back before a subsystem restart.
+	 */
+	io_setbits32(hpass_tcsr + HPASS_ALT_RESET_Q6SS_n(idx),
+		     HPASS_ALT_ARES_PER_DSP_BIT);
+
+	/*
+	 * Halt the bus master whenever the core is powered: an idle reading
+	 * is only a snapshot and the core can wake before the reset lands.
+	 */
+	if (io_read32(tcsr + TCSR_HPASS_PWR_ON) &
+	    TCSR_HPASS_Q6SS_n_COREPWR_ON_BIT(idx)) {
+		io_setbits32(tcsr + TCSR_HPASS_HALTREQ, halt_bit);
+		timeout = timeout_init_us(200000 * 5);
+		while (!(io_read32(tcsr + TCSR_HPASS_HALTACK) &
+			 TCSR_HPASS_Q6SS_n_BUSM_HALTACK_BIT(idx))) {
+			if (timeout_elapsed(timeout)) {
+				io_clrbits32(tcsr + TCSR_HPASS_HALTREQ,
+					     halt_bit);
+				return TEE_ERROR_TIMEOUT;
+			}
+			udelay(5);
+		}
+	}
+
+	io_setbits32(tcsr + TCSR_HPASS_AUDIO_RESET_CTL,
+		     HPASS_DSPn_CLK_DISABLE_BIT(idx));
+	udelay(5);
+	io_setbits32(tcsr + TCSR_HPASS_AUDIO_RESET_CTL,
+		     HPASS_DSPn_RESET_BIT(idx));
+	udelay(200);
+	io_clrbits32(tcsr + TCSR_HPASS_AUDIO_RESET_CTL,
+		     HPASS_DSPn_RESET_BIT(idx));
+	udelay(5);
+	io_clrbits32(tcsr + TCSR_HPASS_AUDIO_RESET_CTL,
+		     HPASS_DSPn_CLK_DISABLE_BIT(idx));
+	udelay(5);
+
+	io_clrbits32(tcsr + TCSR_HPASS_HALTREQ, halt_bit);
+	io_write32(v + HPASS_QDSP6SS_RET_CFG, 0);
+	dsb();
+
+	return TEE_SUCCESS;
+}
+
+/*
+ * Whether another HPASS Q6 has its core powered, whoever started it: the
+ * per-Q6 reset is only needed, and only safe, to keep such a Q6 running.
+ */
+static bool hpass_others_powered(unsigned int idx)
+{
+	struct io_pa_va tcsr_io = { .pa = TCSR_MUTEX_BASE };
+	vaddr_t tcsr = io_pa_or_va(&tcsr_io, TCSR_MUTEX_SIZE);
+	uint32_t pwr = io_read32(tcsr + TCSR_HPASS_PWR_ON);
+	unsigned int i = 0;
+
+	for (i = 0; i < HPASS_Q6_COUNT; i++)
+		if (i != idx && (pwr & TCSR_HPASS_Q6SS_n_COREPWR_ON_BIT(i)))
+			return true;
+
+	return false;
+}
+
+static TEE_Result hpass_reset_processor(unsigned int idx)
+{
+	TEE_Result res = TEE_SUCCESS;
+
+	if (hpass_others_powered(idx)) {
+		res = hpass_reset_dsp(idx);
+		if (res == TEE_ERROR_TIMEOUT) {
+			EMSG("HPASS Q6 %u: no bus halt ack, restarting HPASS",
+			     idx);
+			res = hpass_reset_ss(true);
+		}
+	} else {
+		res = hpass_reset_ss(false);
+	}
+
+	return res;
+}
+
+static TEE_Result hpass_setup_secondary(unsigned int idx)
+{
+	vaddr_t v = hpass_q6_va(idx);
+
+	io_write32(v + HPASS_QDSP6SS_RET_CFG, 0);
+	io_setbits32(v + HPASS_QDSP6SS_CORE_CC_OFFSET + HPASS_QDSP6SS_CORE_CBCR,
+		     QDSP6SS_CORE_CBCR_CLK_ENABLE_BIT);
+	io_write32(v + HPASS_QDSP6SS_DBG_CFG, 0);
+
+	return TEE_SUCCESS;
+}
+
+static TEE_Result hpass_setup(unsigned int idx)
+{
+	vaddr_t v = hpass_q6_va(idx);
 	struct io_pa_va tcm_io = { .pa = HPASS_TCM_BASE };
 	vaddr_t tcm = io_pa_or_va(&tcm_io, HPASS_TCM_SIZE);
 	uint64_t timeout = timeout_init_us(200000 * 5);
 	uint32_t i = 0;
 	TEE_Result res = TEE_SUCCESS;
+
+	if (idx)
+		return hpass_setup_secondary(idx);
 
 	io_write32(v + HPASS_QDSP6SS_RET_CFG, 0);
 	io_write32(v + HPASS_QDSP6SS_DBG_CFG, 0);
@@ -631,25 +805,7 @@ static TEE_Result hpass_setup_0(void)
 		udelay(5);
 	}
 
-	io_setbits32(core_cc + HPASS_QDSP6SS_CORE_CBCR,
-		     QDSP6SS_CORE_CBCR_CLK_ENABLE_BIT);
-
-	io_setbits32(core_cc + HPASS_QDSP6SS_CORE_PLL_ACMU,
-		     CORE_PLL_ACMU_CMON_FREQ_INVALID_BIT);
-
-	res = qcom_lucidole_pll_enable(v + HPASS_QDSP6SS_PLL_OFFSET,
-				       &hpass0_q6_pll_cfg);
-	if (res != TEE_SUCCESS)
-		return res;
-
-	io_mask32(core_cc + HPASS_QDSP6SS_CORE_PLL_ACMU,
-		  hpass0_q6_pll_cfg.l_val * 10,
-		  CORE_PLL_ACMU_CMON_FREQ_VAL_MASK);
-	io_clrbits32(core_cc + HPASS_QDSP6SS_CORE_PLL_ACMU,
-		     CORE_PLL_ACMU_CMON_FREQ_INVALID_BIT);
-
-	res = qcom_clock_set_rate(core_cc + HPASS_QDSP6SS_CORE_CFG_RCGR,
-				  core_cc + HPASS_QDSP6SS_CORE_CMD_RCGR,
+	res = hpass_q6_core_clock(v, &hpass0_q6_pll_cfg,
 				  CDSP_QDSP0RCG_CFG_VAL);
 	if (res != TEE_SUCCESS)
 		return res;
@@ -666,32 +822,6 @@ static TEE_Result hpass_setup_0(void)
 	return TEE_SUCCESS;
 }
 
-static TEE_Result hpass_setup_1(void)
-{
-	struct io_pa_va io = { .pa = HPASS_1_BASE };
-	vaddr_t v = io_pa_or_va(&io, HPASS_1_SIZE);
-
-	io_write32(v + HPASS_QDSP6SS_RET_CFG, 0);
-	io_setbits32(v + HPASS_QDSP6SS_CORE_CC_OFFSET + HPASS_QDSP6SS_CORE_CBCR,
-		     QDSP6SS_CORE_CBCR_CLK_ENABLE_BIT);
-	io_write32(v + HPASS_QDSP6SS_DBG_CFG, 0);
-
-	return TEE_SUCCESS;
-}
-
-static TEE_Result hpass_setup_2(void)
-{
-	struct io_pa_va io = { .pa = HPASS_2_BASE };
-	vaddr_t v = io_pa_or_va(&io, HPASS_2_SIZE);
-
-	io_write32(v + HPASS_QDSP6SS_RET_CFG, 0);
-	io_setbits32(v + HPASS_QDSP6SS_CORE_CC_OFFSET + HPASS_QDSP6SS_CORE_CBCR,
-		     QDSP6SS_CORE_CBCR_CLK_ENABLE_BIT);
-	io_write32(v + HPASS_QDSP6SS_DBG_CFG, 0);
-
-	return TEE_SUCCESS;
-}
-
 TEE_Result qcom_clock_enable_pas(enum qcom_clk_group group)
 {
 	switch (group) {
@@ -704,11 +834,11 @@ TEE_Result qcom_clock_enable_pas(enum qcom_clk_group group)
 	case QCOM_CLKS_TURING3:
 		return cdsp_setup(CDSP_3_BASE);
 	case QCOM_CLKS_HPASS0:
-		return hpass_setup_0();
+		return hpass_setup(0);
 	case QCOM_CLKS_HPASS1:
-		return hpass_setup_1();
+		return hpass_setup(1);
 	case QCOM_CLKS_HPASS2:
-		return hpass_setup_2();
+		return hpass_setup(2);
 	default:
 		return TEE_ERROR_NOT_SUPPORTED;
 	}
@@ -726,11 +856,11 @@ TEE_Result qcom_clock_enable_pas_processor(enum qcom_clk_group group)
 	case QCOM_CLKS_TURING3:
 		return cdsp_enable_processor(CDSP_3_BASE);
 	case QCOM_CLKS_HPASS0:
-		return hpass_enable_processor_0();
+		return hpass_enable_processor(0);
 	case QCOM_CLKS_HPASS1:
-		return hpass_enable_processor_1();
+		return hpass_enable_processor(1);
 	case QCOM_CLKS_HPASS2:
-		return hpass_enable_processor_2();
+		return hpass_enable_processor(2);
 	default:
 		return TEE_ERROR_NOT_SUPPORTED;
 	}
@@ -748,9 +878,11 @@ TEE_Result qcom_clock_pas_reset(enum qcom_clk_group group)
 	case QCOM_CLKS_TURING3:
 		return cdsp_reset_processor(&cdsp3_regs);
 	case QCOM_CLKS_HPASS0:
+		return hpass_reset_processor(0);
 	case QCOM_CLKS_HPASS1:
+		return hpass_reset_processor(1);
 	case QCOM_CLKS_HPASS2:
-		return hpass_reset_processor();
+		return hpass_reset_processor(2);
 	default:
 		return TEE_ERROR_NOT_SUPPORTED;
 	}
