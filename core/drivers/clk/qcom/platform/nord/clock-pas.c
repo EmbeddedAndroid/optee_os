@@ -408,6 +408,13 @@ static const struct {
 
 static_assert(HPASS_Q6_COUNT <= ARRAY_SIZE(hpass_q6));
 
+/* Secondary Q6SS core clock, saved before a reset, replayed on restart. */
+static struct hpass_q6_clock {
+	struct qcom_pll_config pll;
+	uint32_t rcg_cfg;
+	bool valid;
+} hpass_q6_clock[HPASS_Q6_COUNT];
+
 static vaddr_t hpass_q6_va(unsigned int idx)
 {
 	struct io_pa_va io = { .pa = hpass_q6[idx].base };
@@ -452,16 +459,88 @@ static TEE_Result hpass_q6_core_clock(vaddr_t v,
 }
 
 /*
- * A secondary Q6SS stops at the HPASS hardware auto-break; the primary DSP
- * firmware programs its core clock and sets HW_RESUME at cold boot.
+ * The primary DSP firmware chooses the secondary Q6SS core clock (PLL and
+ * RCG) at cold boot; it differs from the primary's own. Record it while
+ * the secondary still runs so a restart can program the same clock.
+ */
+static void hpass_q6_save_clock(unsigned int idx)
+{
+	vaddr_t v = hpass_q6_va(idx);
+	vaddr_t pll = v + HPASS_QDSP6SS_PLL_OFFSET;
+	struct hpass_q6_clock *c = &hpass_q6_clock[idx];
+	const struct qcom_pll_offsets *o = &lucidole_pll_offsets;
+	uint32_t l = io_read32(pll + o->l_val);
+	uint32_t user = io_read32(pll + o->user_ctl);
+
+	if (!(io_read32(hpass_tcsr_va() + HPASS_Q6SS_n_HW_BOOT_CTL(idx)) &
+	      HPASS_Q6SS_HW_RESUME_BIT) ||
+	    !(io_read32(pll + o->mode) & HPASS_Q6_PLL_MODE_LOCK_DET))
+		return;
+
+	c->pll = (struct qcom_pll_config){
+		.offsets = o,
+		.l_val = l & HPASS_Q6_PLL_L_MASK,
+		.cal_l_val = (l & HPASS_Q6_PLL_CAL_L_MASK) >>
+			     HPASS_Q6_PLL_CAL_L_SHIFT,
+		.alpha_val = io_read32(pll + o->alpha_val),
+		.config_ctl = io_read32(pll + o->config_ctl),
+		.config_ctl_u = io_read32(pll + o->config_ctl_u),
+		.config_ctl_u1 = io_read32(pll + o->config_ctl_u1),
+		.test_ctl = io_read32(pll + o->test_ctl),
+		.test_ctl_u = io_read32(pll + o->test_ctl_u),
+		.test_ctl_u1 = io_read32(pll + o->test_ctl_u1),
+		.test_ctl_u2 = io_read32(pll + o->test_ctl_u2),
+		.user_ctl = user & ~HPASS_Q6_PLL_USER_CTL_OUT_MAIN_EN,
+		.user_ctl_u = io_read32(pll + o->user_ctl_u),
+		.frac_mode_mn = user & HPASS_Q6_PLL_USER_CTL_FRAC_FMT,
+	};
+	c->rcg_cfg = io_read32(v + HPASS_QDSP6SS_CORE_CC_OFFSET +
+			       HPASS_QDSP6SS_CORE_CFG_RCGR);
+	c->valid = true;
+}
+
+/*
+ * The primary DSP prepares the secondary Q6SS (PLL, HW_RESUME) only during
+ * its cold-boot initialisation of the shared HPASS resources, after which
+ * it sets COLD_BOOT_COMPLETE. A secondary started later, e.g. after its
+ * own reset, waits at the auto-break with no one to resume it: prepare
+ * and resume it here, as the primary would have.
  */
 static TEE_Result hpass_enable_secondary(unsigned int idx)
 {
 	vaddr_t v = hpass_q6_va(idx);
+	vaddr_t ht = hpass_tcsr_va();
+	vaddr_t boot_ctl = ht + HPASS_Q6SS_n_HW_BOOT_CTL(idx);
+	uint64_t timeout = 0;
+	TEE_Result res = TEE_SUCCESS;
+	bool resume = false;
+
+	resume = !(io_read32(boot_ctl) & HPASS_Q6SS_HW_RESUME_BIT) &&
+		 (io_read32(ht + HPASS_Q6SS_COLD_BOOT_COMPLETE) &
+		  HPASS_Q6SS_COLD_BOOT_COMPLETE_BIT);
+	if (resume && !hpass_q6_clock[idx].valid)
+		return TEE_ERROR_BAD_STATE;
 
 	io_setbits32(v + HPASS_QDSP6SS_BOOT_CORE_START,
 		     QDSP6SS_BOOT_CORE_START_START_BIT);
 	io_write32(v + HPASS_QDSP6SS_BOOT_CMD, 1);
+
+	if (resume) {
+		timeout = timeout_init_us(200000 * 5);
+		while (!(io_read32(v + HPASS_QDSP6SS_BOOT_STATUS) &
+			 QDSP6SS_BOOT_STATUS_AUTO_BREAK_BIT)) {
+			if (timeout_elapsed(timeout))
+				return TEE_ERROR_TIMEOUT;
+			udelay(5);
+		}
+
+		res = hpass_q6_core_clock(v, &hpass_q6_clock[idx].pll,
+					  hpass_q6_clock[idx].rcg_cfg);
+		if (res != TEE_SUCCESS)
+			return res;
+
+		io_setbits32(boot_ctl, HPASS_Q6SS_HW_RESUME_BIT);
+	}
 
 	return TEE_SUCCESS;
 }
@@ -679,6 +758,8 @@ static TEE_Result hpass_reset_dsp(unsigned int idx)
 	vaddr_t v = hpass_q6_va(idx);
 	uint32_t halt_bit = TCSR_HPASS_Q6SS_n_BUSM_HALTREQ_BIT(idx);
 	uint64_t timeout = 0;
+
+	hpass_q6_save_clock(idx);
 
 	io_clrbits32(cc + hpass_q6[idx].xo_cbcr,
 		     Q6DSPSS_XO_CBCR_IGNORE_ALL_CLK_DIS_BIT);
