@@ -11,6 +11,11 @@
 #include <arch_config.h>
 #include <target_config.h>
 
+/* Redistributor frames the GIC presents, when it has more than cores */
+#ifndef GICR_COUNT
+#define GICR_COUNT			CFG_TEE_CORE_NB_CORE
+#endif
+
 /* Make stacks aligned to data cache line length */
 #define STACK_ALIGNMENT			64
 

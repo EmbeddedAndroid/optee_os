@@ -23,7 +23,7 @@ register_phys_mem_pgdir(MEM_AREA_IO_NSEC, GENI_UART_REG_BASE,
 register_phys_mem_pgdir(MEM_AREA_IO_SEC, GICD_BASE, GIC_DIST_REG_SIZE);
 #ifdef _CFG_ARM_GIC_V3_OR_V4
 register_phys_mem_pgdir(MEM_AREA_IO_SEC, GICR_BASE,
-			GIC_REDIST_REG_SIZE * CFG_TEE_CORE_NB_CORE);
+			GIC_REDIST_REG_SIZE * GICR_COUNT);
 #else
 register_phys_mem_pgdir(MEM_AREA_IO_SEC, GICC_BASE, GIC_CPU_REG_SIZE);
 #endif
