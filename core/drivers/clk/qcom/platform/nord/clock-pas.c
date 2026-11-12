@@ -25,11 +25,17 @@
 register_phys_mem(MEM_AREA_IO_NSEC, GCC_BASE, GCC_SIZE);
 register_phys_mem(MEM_AREA_IO_NSEC, CDSP_0_BASE, CDSP_0_SIZE);
 register_phys_mem(MEM_AREA_IO_NSEC, CDSP_1_BASE, CDSP_1_SIZE);
+#if CDSP_COUNT > 2
 register_phys_mem(MEM_AREA_IO_NSEC, CDSP_2_BASE, CDSP_2_SIZE);
+#endif
+#if CDSP_COUNT > 3
 register_phys_mem(MEM_AREA_IO_NSEC, CDSP_3_BASE, CDSP_3_SIZE);
+#endif
 register_phys_mem(MEM_AREA_IO_NSEC, HPASS_0_BASE, HPASS_0_SIZE);
 register_phys_mem(MEM_AREA_IO_NSEC, HPASS_1_BASE, HPASS_1_SIZE);
+#if HPASS_Q6_COUNT > 2
 register_phys_mem(MEM_AREA_IO_NSEC, HPASS_2_BASE, HPASS_2_SIZE);
+#endif
 register_phys_mem(MEM_AREA_IO_NSEC, HPASS_CC_BASE, HPASS_CC_SIZE);
 register_phys_mem(MEM_AREA_IO_NSEC, HPASS_TCM_BASE, HPASS_TCM_SIZE);
 register_phys_mem(MEM_AREA_IO_NSEC, HPASS_TCSR_BASE, HPASS_TCSR_SIZE);
@@ -72,6 +78,7 @@ static const struct cdsp_regs cdsp1_regs = {
 	.pdc_sync_reset_off = RPMH_PDC_COMPUTE1_SYNC_RESET,
 };
 
+#if CDSP_COUNT > 2
 static const struct cdsp_regs cdsp2_regs = {
 	.base = CDSP_2_BASE,
 	.tcsr_haltreq = 0x7607c,
@@ -82,7 +89,9 @@ static const struct cdsp_regs cdsp2_regs = {
 	.computess_restart_bit = BIT(2),
 	.pdc_sync_reset_off = RPMH_PDC_COMPUTE2_SYNC_RESET,
 };
+#endif
 
+#if CDSP_COUNT > 3
 static const struct cdsp_regs cdsp3_regs = {
 	.base = CDSP_3_BASE,
 	.tcsr_haltreq = 0x760b4,
@@ -93,6 +102,7 @@ static const struct cdsp_regs cdsp3_regs = {
 	.computess_restart_bit = BIT(3),
 	.pdc_sync_reset_off = RPMH_PDC_COMPUTE3_SYNC_RESET,
 };
+#endif
 
 /* Lucid-OLE uses the same PLL register layout as Lucid-EVO. */
 static const struct qcom_pll_offsets lucidole_pll_offsets = {
@@ -910,16 +920,22 @@ TEE_Result qcom_clock_enable_pas(enum qcom_clk_group group)
 		return cdsp_setup(CDSP_0_BASE);
 	case QCOM_CLKS_TURING1:
 		return cdsp_setup(CDSP_1_BASE);
+#if CDSP_COUNT > 2
 	case QCOM_CLKS_TURING2:
 		return cdsp_setup(CDSP_2_BASE);
+#endif
+#if CDSP_COUNT > 3
 	case QCOM_CLKS_TURING3:
 		return cdsp_setup(CDSP_3_BASE);
+#endif
 	case QCOM_CLKS_HPASS0:
 		return hpass_setup(0);
 	case QCOM_CLKS_HPASS1:
 		return hpass_setup(1);
+#if HPASS_Q6_COUNT > 2
 	case QCOM_CLKS_HPASS2:
 		return hpass_setup(2);
+#endif
 	default:
 		return TEE_ERROR_NOT_SUPPORTED;
 	}
@@ -932,16 +948,22 @@ TEE_Result qcom_clock_enable_pas_processor(enum qcom_clk_group group)
 		return cdsp_enable_processor(CDSP_0_BASE);
 	case QCOM_CLKS_TURING1:
 		return cdsp_enable_processor(CDSP_1_BASE);
+#if CDSP_COUNT > 2
 	case QCOM_CLKS_TURING2:
 		return cdsp_enable_processor(CDSP_2_BASE);
+#endif
+#if CDSP_COUNT > 3
 	case QCOM_CLKS_TURING3:
 		return cdsp_enable_processor(CDSP_3_BASE);
+#endif
 	case QCOM_CLKS_HPASS0:
 		return hpass_enable_processor(0);
 	case QCOM_CLKS_HPASS1:
 		return hpass_enable_processor(1);
+#if HPASS_Q6_COUNT > 2
 	case QCOM_CLKS_HPASS2:
 		return hpass_enable_processor(2);
+#endif
 	default:
 		return TEE_ERROR_NOT_SUPPORTED;
 	}
@@ -954,16 +976,22 @@ TEE_Result qcom_clock_pas_reset(enum qcom_clk_group group)
 		return cdsp_reset_processor(&cdsp0_regs);
 	case QCOM_CLKS_TURING1:
 		return cdsp_reset_processor(&cdsp1_regs);
+#if CDSP_COUNT > 2
 	case QCOM_CLKS_TURING2:
 		return cdsp_reset_processor(&cdsp2_regs);
+#endif
+#if CDSP_COUNT > 3
 	case QCOM_CLKS_TURING3:
 		return cdsp_reset_processor(&cdsp3_regs);
+#endif
 	case QCOM_CLKS_HPASS0:
 		return hpass_reset_processor(0);
 	case QCOM_CLKS_HPASS1:
 		return hpass_reset_processor(1);
+#if HPASS_Q6_COUNT > 2
 	case QCOM_CLKS_HPASS2:
 		return hpass_reset_processor(2);
+#endif
 	default:
 		return TEE_ERROR_NOT_SUPPORTED;
 	}
