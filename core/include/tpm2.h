@@ -218,6 +218,15 @@ enum tpm2_result tpm2_pcr_extend(uint8_t pcr_idx, uint16_t alg, void *digest,
 				 uint32_t digest_len);
 
 /*
+ * As tpm2_pcr_extend(), with the command sent at TIS locality @locality,
+ * for the PCRs that refuse an extend at locality 0 (the D-RTM PCRs 17 to
+ * 22; D-RTM records in 17 and 18 at locality 4).
+ */
+enum tpm2_result tpm2_pcr_extend_locality(uint8_t locality, uint8_t pcr_idx,
+					  uint16_t alg, void *digest,
+					  uint32_t digest_len);
+
+/*
  * Get hash length corresponding to TPM algorithm
  *
  * @alg - TPM2 hash algorithm ID, on of TPM2_ALG_*

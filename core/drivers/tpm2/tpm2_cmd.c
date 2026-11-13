@@ -74,8 +74,9 @@ static uint32_t tpm2_get_cmd_duration(uint32_t cmd_code)
 	}
 }
 
-static enum tpm2_result tpm2_transmit(void *buf, uint32_t bufsz, void *resp,
-				      uint32_t *len)
+static enum tpm2_result tpm2_transmit_locality(uint8_t locality, void *buf,
+					       uint32_t bufsz, void *resp,
+					       uint32_t *len)
 {
 	uint32_t cmd_duration = 0;
 	enum tpm2_result ret = TPM2_OK;
@@ -91,7 +92,8 @@ static enum tpm2_result tpm2_transmit(void *buf, uint32_t bufsz, void *resp,
 
 	cmd_duration = tpm2_get_cmd_duration(tpm2_cmd_code(buf));
 
-	ret = tpm2_chip_transceive(0, buf, bufsz, resp, len, cmd_duration);
+	ret = tpm2_chip_transceive(locality, buf, bufsz, resp, len,
+				   cmd_duration);
 	if (ret)
 		return ret;
 
@@ -104,6 +106,12 @@ static enum tpm2_result tpm2_transmit(void *buf, uint32_t bufsz, void *resp,
 	DHEXDUMP(resp, tpm2_cmd_len(resp));
 
 	return ret;
+}
+
+static enum tpm2_result tpm2_transmit(void *buf, uint32_t bufsz, void *resp,
+				      uint32_t *len)
+{
+	return tpm2_transmit_locality(0, buf, bufsz, resp, len);
 }
 
 enum tpm2_result tpm2_startup(uint16_t mode)
@@ -349,8 +357,9 @@ static enum tpm2_result tpm2_add_password_auth_cmd(uint8_t *buf,
 	return TPM2_OK;
 }
 
-enum tpm2_result tpm2_pcr_extend(uint8_t pcr_idx, uint16_t alg, void *digest,
-				 uint32_t digest_len)
+enum tpm2_result tpm2_pcr_extend_locality(uint8_t locality, uint8_t pcr_idx,
+					  uint16_t alg, void *digest,
+					  uint32_t digest_len)
 {
 	void *buf = NULL;
 	uint32_t buf_len = 128;
@@ -404,8 +413,9 @@ enum tpm2_result tpm2_pcr_extend(uint8_t pcr_idx, uint16_t alg, void *digest,
 	tpm2_cmd_add_u16(buf, buf_len, alg);
 	tpm2_cmd_add(buf, buf_len, digest, digest_len);
 
-	ret = tpm2_transmit(buf, tpm2_cmd_len((struct tpm2_cmd *)buf), resp_buf,
-			    &resp_len);
+	ret = tpm2_transmit_locality(locality, buf,
+				     tpm2_cmd_len((struct tpm2_cmd *)buf),
+				     resp_buf, &resp_len);
 	if (ret)
 		goto out;
 
@@ -415,4 +425,10 @@ out:
 	free(buf);
 
 	return ret;
+}
+
+enum tpm2_result tpm2_pcr_extend(uint8_t pcr_idx, uint16_t alg, void *digest,
+				 uint32_t digest_len)
+{
+	return tpm2_pcr_extend_locality(0, pcr_idx, alg, digest, digest_len);
 }
