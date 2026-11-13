@@ -60,9 +60,18 @@ bool spmc_is_reserved_id(uint16_t id);
 
 struct sp_session;
 
+/*
+ * A logical partition inside OP-TEE. direct_req() handles a direct request
+ * on the SPMC's temporary stack, or, with @in_thread, in an OP-TEE thread
+ * with foreign interrupts masked that cannot RPC (THREAD_FLAGS_NO_RPC):
+ * there it may take mutexes, as described in <kernel/mutex.h>, but must
+ * never call the normal world. Requests from S-EL0 SPs to an in_thread
+ * partition are refused with FFA_DENIED.
+ */
 struct spmc_lsp_desc {
 	void (*direct_req)(struct thread_smc_1_2_regs *args,
 			   struct sp_session *caller_sp);
+	bool in_thread;
 	uint16_t sp_id;
 	uint32_t properties;
 	uint32_t uuid_words[4];

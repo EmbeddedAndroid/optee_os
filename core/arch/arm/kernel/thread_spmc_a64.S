@@ -102,15 +102,17 @@ FUNC thread_std_smc_entry , :
 	b	ffa_msg_send_direct_resp
 END_FUNC thread_std_smc_entry
 
-#ifdef CFG_SECURE_PARTITION
-/* void spmc_sp_thread_entry(args) */
-FUNC spmc_sp_thread_entry , :
-	/* Store the parameter registers x0-x17 on the thread stack */
+/*
+ * Thread entry of a direct request handled in a thread: store the
+ * parameter registers x0-x17 on the thread stack, call \handler(args,
+ * NULL), then free the thread and send the result registers.
+ */
+.macro spmc_thread_entry handler
 	sub     sp, sp, #THREAD_SMC_1_2_REGS_SIZE
 	store_xregs sp, 0, 0, 17
 	mov     x0, sp
-	mov     x1, #0 /* Pass NULL pointer for caller_sp, coming from NW */
-	bl      spmc_sp_msg_handler
+	mov     x1, #0 /* Pass NULL pointer for caller_sp, not from an SP */
+	bl      \handler
 
 	/* Mask all maskable exceptions before switching to temporary stack */
 	msr     daifset, #DAIFBIT_ALL
@@ -131,7 +133,20 @@ FUNC spmc_sp_thread_entry , :
 	load_xregs sp, 0, 0, 17
 	add	sp, sp, #THREAD_SMC_1_2_REGS_SIZE
 	b .ffa_msg_loop
+.endm
+
+#ifdef CFG_SECURE_PARTITION
+/* void spmc_sp_thread_entry(args) */
+FUNC spmc_sp_thread_entry , :
+	spmc_thread_entry spmc_sp_msg_handler
 END_FUNC spmc_sp_thread_entry
+#endif
+
+#ifdef CFG_CORE_SEL1_SPMC
+/* void spmc_lsp_thread_entry(args) */
+FUNC spmc_lsp_thread_entry , :
+	spmc_thread_entry spmc_lsp_thread_msg_handler
+END_FUNC spmc_lsp_thread_entry
 #endif
 
 /* void thread_rpc_spsr(uint32_t rv[THREAD_RPC_NUM_ARGS], uint64_t spsr) */
@@ -207,7 +222,8 @@ END_FUNC thread_rpc_spsr
  * handled by the FF-A driver and after taking care of the NWd interrupts it
  * returns via an FFA_RUN call.
  * The active endpoint is determined by checking the THREAD_FLAGS_FFA_ONLY flag
- * in threads[w0].flags. This is only set for the thread which handles SPs.
+ * in threads[w0].flags. This is only set for the threads which handle SPs
+ * and logical partitions; the latter run with foreign interrupts masked.
  */
 FUNC thread_foreign_intr_exit , :
 #ifdef CFG_SECURE_PARTITION

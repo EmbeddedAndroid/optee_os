@@ -9,6 +9,7 @@
 
 #ifndef __ASSEMBLER__
 
+#include <kernel/panic.h>
 #include <kernel/thread.h>
 #include <kernel/vfp.h>
 #include <sm/sm.h>
@@ -131,6 +132,26 @@ uint32_t __thread_std_smc_entry(uint32_t a0, uint32_t a1, uint32_t a2,
 				uint32_t a3, uint32_t a4, uint32_t a5);
 
 void thread_sp_alloc_and_run(struct thread_smc_1_2_regs *args);
+
+/*
+ * Runs the direct request in @args to a logical partition registered with
+ * spmc_lsp_desc.in_thread in a new thread that cannot RPC, entered at
+ * spmc_lsp_thread_entry() with foreign interrupts masked. Only returns if
+ * no thread is free.
+ */
+#ifdef CFG_CORE_SEL1_SPMC
+void thread_lsp_alloc_and_run(struct thread_smc_1_2_regs *args);
+#else
+static inline void
+thread_lsp_alloc_and_run(struct thread_smc_1_2_regs *args __unused)
+{
+	panic();
+}
+#endif
+void spmc_lsp_thread_entry(struct thread_smc_1_2_regs *args);
+struct sp_session;
+void spmc_lsp_thread_msg_handler(struct thread_smc_1_2_regs *args,
+				 struct sp_session *caller_sp);
 
 /*
  * Resumes execution of currently active thread by restoring context and

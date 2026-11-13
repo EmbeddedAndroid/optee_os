@@ -991,11 +991,27 @@ optee_spmc_lsp_handle_direct_request(struct thread_smc_1_2_regs *args,
 		set_simple_ret_val(args, FFA_INVALID_PARAMETERS);
 }
 
+#if defined(CFG_CORE_SEL1_SPMC)
+void spmc_lsp_thread_msg_handler(struct thread_smc_1_2_regs *args,
+				 struct sp_session *caller_sp __unused)
+{
+	struct spmc_lsp_desc *lsp = spmc_find_lsp_by_sp_id(FFA_DST(args->a1));
+
+	thread_check_canaries();
+	assert(lsp && lsp->in_thread);
+	lsp->direct_req(args, NULL);
+}
+#endif
+
 static void handle_direct_request(struct thread_smc_1_2_regs *args)
 {
 	struct spmc_lsp_desc *lsp = spmc_find_lsp_by_sp_id(FFA_DST(args->a1));
 
-	if (lsp) {
+	if (lsp && IS_ENABLED(CFG_CORE_SEL1_SPMC) && lsp->in_thread) {
+		thread_lsp_alloc_and_run(args);
+		/* Only returns if all threads are busy */
+		set_simple_ret_val(args, FFA_BUSY);
+	} else if (lsp) {
 		lsp->direct_req(args, NULL);
 	} else {
 		int rc = spmc_sp_start_thread(args);
@@ -2743,6 +2759,14 @@ static TEE_Result check_desc(struct spmc_lsp_desc *d)
 
 	if (!d->direct_req) {
 		EMSG("Missing direct request callback for LSP \"%s\" %#"PRIx16,
+		     d->name, d->sp_id);
+		if (!IS_ENABLED(CFG_SP_SKIP_FAILED))
+			panic();
+		return TEE_ERROR_BAD_FORMAT;
+	}
+
+	if (d->in_thread && !IS_ENABLED(CFG_CORE_SEL1_SPMC)) {
+		EMSG("LSP \"%s\" %#"PRIx16": in_thread needs the S-EL1 SPMC",
 		     d->name, d->sp_id);
 		if (!IS_ENABLED(CFG_SP_SKIP_FAILED))
 			panic();

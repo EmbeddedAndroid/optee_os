@@ -282,7 +282,7 @@ void thread_alloc_and_run(uint32_t a0, uint32_t a1, uint32_t a2, uint32_t a3,
 			       thread_std_smc_entry, 0);
 }
 
-#ifdef CFG_SECURE_PARTITION
+#if defined(CFG_SECURE_PARTITION) || defined(CFG_CORE_SEL1_SPMC)
 static void init_regs_spmc(struct thread_ctx *thread,
 			   const struct thread_smc_1_2_regs *args, void *pc)
 {
@@ -299,15 +299,16 @@ static void init_regs_spmc(struct thread_ctx *thread,
 		thread->regs.x[n] = 0;
 }
 
-void thread_sp_alloc_and_run(struct thread_smc_1_2_regs *args)
+static void thread_spmc_alloc_and_run(struct thread_smc_1_2_regs *args,
+				      void *pc, uint32_t flags)
 {
 	struct thread_core_local *l = thread_get_core_local();
-	struct thread_ctx *thread = alloc_thread(THREAD_FLAGS_FFA_ONLY);
+	struct thread_ctx *thread = alloc_thread(THREAD_FLAGS_FFA_ONLY | flags);
 
 	if (!thread)
 		return;
 
-	init_regs_spmc(thread, args, spmc_sp_thread_entry);
+	init_regs_spmc(thread, args, pc);
 #ifdef CFG_CORE_PAUTH
 	thread->regs.apiakey_hi = thread->keys.apia_hi;
 	thread->regs.apiakey_lo = thread->keys.apia_lo;
@@ -318,6 +319,21 @@ void thread_sp_alloc_and_run(struct thread_smc_1_2_regs *args)
 	l->flags &= ~THREAD_CLF_TMP;
 	thread_resume(&thread->regs);
 	panic();
+}
+#endif
+
+#ifdef CFG_SECURE_PARTITION
+void thread_sp_alloc_and_run(struct thread_smc_1_2_regs *args)
+{
+	thread_spmc_alloc_and_run(args, spmc_sp_thread_entry, 0);
+}
+#endif
+
+#ifdef CFG_CORE_SEL1_SPMC
+void thread_lsp_alloc_and_run(struct thread_smc_1_2_regs *args)
+{
+	thread_spmc_alloc_and_run(args, spmc_lsp_thread_entry,
+				  THREAD_FLAGS_NO_RPC);
 }
 #endif
 

@@ -993,6 +993,14 @@ ffa_handle_sp_direct_req(struct thread_smc_1_2_regs *args,
 		return caller_sp;
 	}
 
+	if (lsp && lsp->in_thread) {
+		/* The SP's thread can RPC, which in_thread does not expect */
+		EMSG("LSP 0x%"PRIx16" only serves the normal world and EL3",
+		     lsp->sp_id);
+		ffa_set_error(args, FFA_DENIED);
+		return caller_sp;
+	}
+
 	if (lsp) {
 		lsp->direct_req(args, caller_sp);
 		return caller_sp;
