@@ -4,8 +4,9 @@
  *
  * D-RTM measurement endpoint: the Arm DRTM (DEN0113) Dynamic Configuration
  * Environment in EL3 records the measurements of a dynamic launch in the
- * TPM's D-RTM PCRs through this logical partition. The ABI is in
- * <tpm2_drtm_lsp.h>.
+ * TPM's D-RTM PCRs through this logical partition, and the DLME then
+ * records what it starts in PCRs 19 to 22 at locality 2 until it closes
+ * that locality. The ABI is in <tpm2_drtm_lsp.h>.
  *
  * Requests run in a thread that cannot RPC, with foreign interrupts
  * masked. They take the chip with tpm2_chip_claim() and answer
@@ -32,6 +33,8 @@ static uint8_t drtm_sha384[TPM2_SHA384_DIGEST_SIZE];
 static uint8_t drtm_sha384_pcr;
 /* Banks declared by the last DL_EVENT, 0 before the first launch */
 static uint32_t drtm_banks;
+/* Locality 2 is open to the DLME */
+static bool drtm_dlme_open;
 
 static enum tpm2_result drtm_extend(uint8_t pcr, uint16_t alg, uint8_t *digest,
 				    uint32_t len)
@@ -50,6 +53,8 @@ static enum tpm2_result drtm_request(uint8_t cmd, uint8_t arg,
 	enum tpm2_result ret = TPM2_OK;
 
 	if (cmd == TPM2_DRTM_CMD_DL_EVENT) {
+		drtm_dlme_open = false;
+		drtm_banks = 0;
 		/*
 		 * An active bank EL3 does not measure in would keep its reset
 		 * value whatever was launched: refuse the launch.
@@ -64,6 +69,23 @@ static enum tpm2_result drtm_request(uint8_t cmd, uint8_t arg,
 		if (banks || arg < TPM2_DRTM_PCR_FIRST ||
 		    arg > TPM2_DRTM_PCR_LAST)
 			return TPM2_ERR_INVALID_ARG;
+	} else if (cmd == TPM2_DRTM_CMD_OPEN_LOCALITY ||
+		   cmd == TPM2_DRTM_CMD_CLOSE_LOCALITY) {
+		if (banks || arg != TPM2_DRTM_DLME_LOCALITY)
+			return TPM2_ERR_INVALID_ARG;
+		/* Only a launch that recorded its DL_EVENT opens locality 2 */
+		if (cmd == TPM2_DRTM_CMD_OPEN_LOCALITY && !drtm_banks)
+			return TPM2_ERR_INVALID_ARG;
+		/*
+		 * Holding the chip, the flag cannot change under a DLME event
+		 * another core is sending: once CLOSE returns, none follows.
+		 */
+		ret = tpm2_chip_claim();
+		if (!ret) {
+			drtm_dlme_open = cmd == TPM2_DRTM_CMD_OPEN_LOCALITY;
+			tpm2_chip_release();
+		}
+		return ret;
 	} else {
 		return TPM2_ERR_INVALID_ARG;
 	}
@@ -86,7 +108,6 @@ static enum tpm2_result drtm_request(uint8_t cmd, uint8_t arg,
 		return ret;
 
 	if (cmd == TPM2_DRTM_CMD_DL_EVENT) {
-		drtm_banks = 0;
 		ret = tpm2_chip_hash_sequence(payload, arg);
 		if (!ret)
 			drtm_banks = banks;
@@ -97,6 +118,31 @@ static enum tpm2_result drtm_request(uint8_t cmd, uint8_t arg,
 		ret = drtm_extend(arg, TPM2_ALG_SHA384, drtm_sha384,
 				  TPM2_SHA384_DIGEST_SIZE);
 	}
+
+	tpm2_chip_release();
+
+	return ret;
+}
+
+static enum tpm2_result drtm_dlme_request(uint8_t cmd, uint8_t arg,
+					  uint32_t banks, uint8_t *payload)
+{
+	enum tpm2_result ret = TPM2_OK;
+
+	if (cmd != TPM2_DRTM_CMD_DLME_EVENT || banks ||
+	    arg < TPM2_DRTM_DLME_PCR_FIRST || arg > TPM2_DRTM_DLME_PCR_LAST)
+		return TPM2_ERR_INVALID_ARG;
+
+	ret = tpm2_chip_claim();
+	if (ret)
+		return ret;
+
+	/* CLOSE_LOCALITY may have run since drtm_direct_req() looked */
+	if (drtm_dlme_open)
+		ret = tpm2_pcr_event_locality(TPM2_DRTM_DLME_LOCALITY, arg,
+					      payload, TPM2_DRTM_PAYLOAD_SIZE);
+	else
+		ret = TPM2_ERR_INVALID_ARG;
 
 	tpm2_chip_release();
 
@@ -135,11 +181,21 @@ static void drtm_direct_req(struct thread_smc_1_2_regs *args,
 			    struct sp_session *caller_sp)
 {
 	uint8_t payload[TPM2_DRTM_PAYLOAD_SIZE] = { };
+	uint32_t banks = TPM2_DRTM_X3_BANKS(args->a3);
+	uint8_t arg = TPM2_DRTM_X3_ARG(args->a3);
+	uint8_t cmd = TPM2_DRTM_X3_CMD(args->a3);
 	uint32_t src = FFA_SRC(args->a1);
 	uint32_t dst = FFA_DST(args->a1);
 	enum tpm2_result ret = TPM2_OK;
 
-	if (caller_sp || src != CFG_TPM2_DRTM_EL3_ID) {
+	/*
+	 * Only the DLME, and only while locality 2 is open, may send a
+	 * DLME_EVENT. The window opens after the launch, so no normal world
+	 * software but the DLME runs while it is open.
+	 */
+	if (caller_sp ||
+	    (src != CFG_TPM2_DRTM_EL3_ID &&
+	     (src != TPM2_DRTM_DLME_ID || !drtm_dlme_open))) {
 		spmc_set_args(args, FFA_ERROR, 0, FFA_DENIED, 0, 0, 0);
 		return;
 	}
@@ -150,9 +206,10 @@ static void drtm_direct_req(struct thread_smc_1_2_regs *args,
 	}
 
 	memcpy(payload, &args->a[4], sizeof(payload));
-	ret = drtm_request(TPM2_DRTM_X3_CMD(args->a3),
-			   TPM2_DRTM_X3_ARG(args->a3),
-			   TPM2_DRTM_X3_BANKS(args->a3), payload);
+	if (src == CFG_TPM2_DRTM_EL3_ID)
+		ret = drtm_request(cmd, arg, banks, payload);
+	else
+		ret = drtm_dlme_request(cmd, arg, banks, payload);
 	if (ret)
 		EMSG("D-RTM request %#"PRIx64" failed: %d", args->a3, ret);
 

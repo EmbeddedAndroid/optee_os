@@ -11,7 +11,8 @@
  * ABI of the TPM D-RTM measurement endpoint (CFG_TPM2_DRTM_LSP): an FF-A
  * logical partition with endpoint ID CFG_TPM2_DRTM_LSP_ID and UUID
  * 3c0a5bd2-5b8f-4d0e-9b6a-9e1f6d2a7c41, called by the Arm DRTM (DEN0113)
- * service in EL3. The callers are built outside OP-TEE, so every value
+ * service in EL3 and by the DLME, the normal world software the dynamic
+ * launch started. The callers are built outside OP-TEE, so every value
  * below is fixed.
  *
  * Request: FFA_MSG_SEND_DIRECT_REQ_64 with x2 = 0 and
@@ -27,7 +28,12 @@
  * and FFA_NOT_SUPPORTED for a malformed request.
  *
  * Only source ID CFG_TPM2_DRTM_EL3_ID, an SPMD logical partition, may send
- * these commands; the SPMD refuses secure source IDs from the normal world.
+ * the commands up to TPM2_DRTM_CMD_CLOSE_LOCALITY; the SPMD refuses secure
+ * source IDs from the normal world. Only source ID TPM2_DRTM_DLME_ID (a
+ * hypervisor gives its guests other IDs) may send TPM2_DRTM_CMD_DLME_EVENT,
+ * and only while locality 2 is open. The DLME sends its events, and closes
+ * locality 2, before it starts other OP-TEE clients: an event that finds
+ * the TPM in use gets TPM2_DRTM_RES_BUSY.
  */
 
 #define TPM2_DRTM_X3_CMD(x3)		((x3) & 0xff)
@@ -39,6 +45,10 @@
 #define TPM2_DRTM_LOCALITY		U(4)
 #define TPM2_DRTM_PCR_FIRST		U(17)
 #define TPM2_DRTM_PCR_LAST		U(18)
+#define TPM2_DRTM_DLME_ID		U(0)
+#define TPM2_DRTM_DLME_LOCALITY		U(2)
+#define TPM2_DRTM_DLME_PCR_FIRST	U(19)
+#define TPM2_DRTM_DLME_PCR_LAST		U(22)
 
 /*
  * Argument: payload length (up to 32). Refused unless the TPM's active PCR
@@ -60,6 +70,20 @@
  */
 #define TPM2_DRTM_CMD_SHA384_LO		U(3)
 #define TPM2_DRTM_CMD_SHA384_HI		U(4)
+/*
+ * Argument: TPM2_DRTM_DLME_LOCALITY. OPEN_LOCALITY, sent once the launch
+ * succeeded, lets the DLME send DLME_EVENT until the matching
+ * CLOSE_LOCALITY, sent on the DLME's DRTM_CLOSE_LOCALITY, or the next
+ * DL_EVENT.
+ */
+#define TPM2_DRTM_CMD_OPEN_LOCALITY	U(5)
+#define TPM2_DRTM_CMD_CLOSE_LOCALITY	U(6)
+/*
+ * From the DLME. Argument: PCR index (19 to 22). TPM2_PCR_Event at
+ * locality 2 with the 32 payload bytes as event data: every active bank of
+ * the PCR is extended with the payload's digest in that bank's algorithm.
+ */
+#define TPM2_DRTM_CMD_DLME_EVENT	U(7)
 
 /*
  * Response x3. An extend for a bank that is not active or was not

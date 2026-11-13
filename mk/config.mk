@@ -1266,6 +1266,11 @@ CFG_DTPM_MEDIATOR_NS_LOCALITIES ?= 0x1
 # CFG_TPM2_DRTM_LSP_ID) through which the Arm DRTM service in EL3, an SPMD
 # logical partition with ID CFG_TPM2_DRTM_EL3_ID, records a dynamic launch
 # in the TPM's D-RTM PCRs at locality 4. Needs OP-TEE as the S-EL1 SPMC.
+# After a successful launch EL3 also opens locality 2 to the DLME (normal
+# world source ID 0) for TPM2_PCR_Event on PCRs 19 to 22, until the DLME
+# closes it with DRTM_CLOSE_LOCALITY or the next launch. The DLME sends its
+# events and closes locality 2 before it starts other OP-TEE clients; an
+# event that finds the TPM in use gets TPM2_DRTM_RES_BUSY.
 # ABI: core/arch/arm/include/tpm2_drtm_lsp.h.
 CFG_TPM2_DRTM_LSP ?= n
 $(eval $(call cfg-depends-all,CFG_TPM2_DRTM_LSP,CFG_DRIVERS_TPM2 \
@@ -1276,6 +1281,13 @@ CFG_TPM2_DRTM_EL3_ID ?= 0xffc0
 # runs outside any guest.
 ifeq ($(CFG_TPM2_DRTM_LSP)-$(CFG_NS_VIRTUALIZATION),y-y)
 $(error CFG_TPM2_DRTM_LSP is not supported with CFG_NS_VIRTUALIZATION)
+endif
+# Locality 2 (PCRs 19 to 22) belongs to the DLME only while the D-RTM
+# endpoint has it open; the mediator must not hand it out at any time.
+ifeq ($(CFG_TPM2_DRTM_LSP)-$(CFG_DTPM_MEDIATOR_PTA),y-y)
+ifneq ($(filter-out 1 0x1,$(CFG_DTPM_MEDIATOR_NS_LOCALITIES)),)
+$(error CFG_TPM2_DRTM_LSP needs CFG_DTPM_MEDIATOR_NS_LOCALITIES=0x1)
+endif
 endif
 
 # Enable the FF-A SPMC tests in xtests
