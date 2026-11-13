@@ -443,13 +443,28 @@ TEE_Result plat_get_protmem_config(enum mobj_use_case use_case,
  *
  * The @use_case defines how the supplied memory range should be protected.
  * The function can be called with MOBJ_USE_CASE_NS_SHM as @use_case to
- * restore the non-protected state.
+ * restore the non-protected state. Until then the range must stay
+ * readable and writable by the core through a secure mapping, as
+ * protmem_clear_range() clears it before the restore.
  *
  * returns TEE_Result value
  */
 
 TEE_Result plat_set_protmem_range(enum mobj_use_case use_case, paddr_t pa,
 				  paddr_size_t sz);
+
+/*
+ * protmem_clear_range() - Clear protected memory before it is returned
+ * @pa:       Start physical address, page aligned
+ * @sz:       Size of the memory range, page aligned
+ *
+ * Zeroes the range through a secure mapping and cleans and invalidates
+ * the data cache to the point of coherency, so that neither the memory
+ * nor a later eviction of a dirty cache line exposes what a TA or a
+ * device left in it. Called before the protection of the range is
+ * removed and the range is handed back to the normal world.
+ */
+void protmem_clear_range(paddr_t pa, paddr_size_t sz);
 #else
 static inline TEE_Result
 plat_get_protmem_config(enum mobj_use_case use_case __unused,
@@ -464,6 +479,11 @@ plat_set_protmem_range(enum mobj_use_case use_case __unused,
 		       paddr_t pa __unused, paddr_size_t sz __unused)
 {
 	return TEE_ERROR_BAD_PARAMETERS;
+}
+
+static inline void protmem_clear_range(paddr_t pa __unused,
+				       paddr_size_t sz __unused)
+{
 }
 #endif
 

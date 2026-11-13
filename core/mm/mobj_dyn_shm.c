@@ -581,6 +581,8 @@ static TEE_Result restore_mem(struct mobj_protmem *m)
 	DMSG("use_case %d pa %#"PRIxPA", size %#zx",
 	     m->use_case, m->pa, m->mobj.size);
 
+	protmem_clear_range(m->pa, m->mobj.size);
+
 	return plat_set_protmem_range(MOBJ_USE_CASE_NS_SHM, m->pa,
 				      m->mobj.size);
 }

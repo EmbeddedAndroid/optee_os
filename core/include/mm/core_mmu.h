@@ -734,6 +734,16 @@ void core_mmu_set_secure_memory(paddr_t base, size_t size);
  */
 void core_mmu_get_secure_memory(paddr_t *base, paddr_size_t *size);
 
+/*
+ * clear_cached_range() - zero a range of normal cacheable memory
+ * @va:  start virtual address
+ * @len: length in bytes
+ *
+ * Same result as memset(va, 0, len), through the architecture's cache
+ * line zeroing instruction where the range allows it.
+ */
+void clear_cached_range(void *va, size_t len);
+
 #endif /*__ASSEMBLER__*/
 
 #endif /* __MM_CORE_MMU_H */

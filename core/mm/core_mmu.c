@@ -1261,6 +1261,11 @@ static void assign_mem_granularity(struct memory_map *mem_map)
 	}
 }
 
+void __weak clear_cached_range(void *va, size_t len)
+{
+	memset(va, 0, len);
+}
+
 static bool place_tee_ram_at_top(paddr_t paddr)
 {
 	return paddr > BIT64(core_mmu_get_va_width()) / 2;

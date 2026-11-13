@@ -546,6 +546,63 @@ TEE_Result __weak plat_set_protmem_range(enum mobj_use_case use_case __unused,
 }
 #endif /*defined(CFG_INSECURE)*/
 
+/*
+ * Protected memory is cleared through this window. It spans one page
+ * directory of its own, so no non-secure mapping shares its translation
+ * table.
+ */
+static vaddr_t protmem_clear_va;
+static unsigned int protmem_clear_lock = SPINLOCK_UNLOCK;
+
+static TEE_Result protmem_clear_init(void)
+{
+	vaddr_t va = ROUNDUP(core_virt_shm_pool.lo, CORE_MMU_PGDIR_SIZE);
+	paddr_t pa = virt_to_phys(&protmem_clear_va);
+
+	if (!tee_mm_alloc2(&core_virt_shm_pool, va, CORE_MMU_PGDIR_SIZE))
+		panic();
+	/*
+	 * Translation tables are never freed: mapping one page now
+	 * allocates the table of the window, so clearing never allocates.
+	 */
+	if (core_mmu_map_contiguous_pages(va, ROUNDDOWN(pa, SMALL_PAGE_SIZE),
+					  1, MEM_AREA_RAM_SEC))
+		panic();
+	core_mmu_unmap_pages(va, 1);
+	protmem_clear_va = va;
+
+	return TEE_SUCCESS;
+}
+preinit_late(protmem_clear_init);
+
+void protmem_clear_range(paddr_t pa, paddr_size_t sz)
+{
+	vaddr_t va = protmem_clear_va;
+	uint32_t exceptions = 0;
+	size_t n = 0;
+
+	assert(!((pa | sz) & SMALL_PAGE_MASK));
+
+	exceptions = cpu_spin_lock_xsave(&protmem_clear_lock);
+	while (sz) {
+		n = MIN(sz, CORE_MMU_PGDIR_SIZE);
+		/*
+		 * Secure attributes as in the TA mapping of protected
+		 * memory, so the maintenance reaches the TA's cache lines.
+		 */
+		if (core_mmu_map_contiguous_pages(va, pa, n / SMALL_PAGE_SIZE,
+						  MEM_AREA_RAM_SEC))
+			panic();
+		clear_cached_range((void *)va, n);
+		if (cache_op_inner(DCACHE_AREA_CLEAN_INV, (void *)va, n))
+			panic();
+		core_mmu_unmap_pages(va, n / SMALL_PAGE_SIZE);
+		pa += n;
+		sz -= n;
+	}
+	cpu_spin_unlock_xrestore(&protmem_clear_lock, exceptions);
+}
+
 TEE_Result __weak plat_get_protmem_config(enum mobj_use_case use_case,
 					  size_t *min_mem_sz,
 					  size_t *min_mem_align)

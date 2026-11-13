@@ -245,6 +245,9 @@
 #define TLBI_ASID_SHIFT		U(48)
 #define TLBI_ASID_MASK		U(0xff)
 
+#define DCZID_BS_MASK		U(0xf)
+#define DCZID_DZP		BIT64(4)
+
 #define ID_AA64PFR1_EL1_BT_MASK	ULL(0xf)
 #define FEAT_BTI_IMPLEMENTED	ULL(0x1)
 
@@ -486,6 +489,7 @@ DEFINE_U32_REG_READWRITE_FUNCS(fpsr)
 
 DEFINE_U32_REG_READ_FUNC(ctr_el0)
 #define read_ctr() read_ctr_el0()
+DEFINE_U64_REG_READ_FUNC(dczid_el0)
 DEFINE_U32_REG_READ_FUNC(contextidr_el1)
 DEFINE_U64_REG_READ_FUNC(sctlr_el1)
 

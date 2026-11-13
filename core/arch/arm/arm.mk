@@ -166,6 +166,13 @@ endif
 ifeq ($(CFG_CORE_FFA)-$(CFG_WITH_PAGER),y-y)
 $(error CFG_CORE_FFA and CFG_WITH_PAGER are not compatible)
 endif
+
+# Protected memory is cleared through a secure mapping before it is
+# returned, but cache_op_outer() would clean it through the non-secure
+# PL310 base and leave the secure lines in the outer cache.
+ifeq ($(CFG_CORE_DYN_PROTMEM)-$(CFG_PL310),y-y)
+$(error CFG_CORE_DYN_PROTMEM and CFG_PL310 are not compatible)
+endif
 _CFG_ARM_GIC_V3_OR_V4 := $(call cfg-one-enabled, CFG_ARM_GICV3 CFG_ARM_GICV4)
 
 ifeq ($(CFG_GIC),y)

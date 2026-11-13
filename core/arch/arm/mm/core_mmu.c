@@ -16,6 +16,7 @@
 #include <mm/core_memprot.h>
 #include <mm/core_mmu.h>
 #include <platform_config.h>
+#include <string.h>
 #include <trace.h>
 #include <util.h>
 
@@ -155,6 +156,23 @@ TEE_Result cache_op_outer(enum cache_op op, paddr_t pa, size_t len)
 	return ret;
 }
 #endif /*CFG_PL310*/
+
+#ifdef ARM64
+void clear_cached_range(void *va, size_t len)
+{
+	uint64_t dczid = read_dczid_el0();
+	size_t bsz = SHIFT_U64(4, dczid & DCZID_BS_MASK);
+	vaddr_t v = (vaddr_t)va;
+
+	if ((dczid & DCZID_DZP) || ((v | len) & (bsz - 1))) {
+		memset(va, 0, len);
+		return;
+	}
+
+	for (; len; len -= bsz, v += bsz)
+		asm volatile ("dc zva, %0" : : "r" (v) : "memory");
+}
+#endif
 
 unsigned int asid_alloc(void)
 {

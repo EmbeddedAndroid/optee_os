@@ -479,6 +479,8 @@ static TEE_Result __maybe_unused restore_mem(struct mobj_ffa_prm *m)
 	DMSG("use_case %d pa %#" PRIxPA ", size %#zx cookie %#"PRIx64,
 	     m->use_case, m->pa, m->mf.mobj.size, m->mf.cookie);
 
+	protmem_clear_range(m->pa, m->mf.mobj.size);
+
 	return plat_set_protmem_range(MOBJ_USE_CASE_NS_SHM, m->pa,
 				      m->mf.mobj.size);
 }
@@ -685,6 +687,11 @@ TEE_Result mobj_ffa_unregister_by_cookie(uint64_t cookie)
 		goto out;
 	}
 	mf = pop_from_list(&shm_inactive_head, cmp_cookie, cookie);
+	if (is_mobj_ffa_prm(&mf->mobj)) {
+		struct mobj_ffa_prm *m = to_mobj_ffa_prm(&mf->mobj);
+
+		protmem_clear_range(m->pa, m->mf.mobj.size);
+	}
 	mobj_ffa_spmc_delete(mf);
 	thread_spmc_relinquish(cookie);
 #endif
