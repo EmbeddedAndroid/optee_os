@@ -1262,6 +1262,22 @@ $(eval $(call cfg-enable-all-depends,CFG_DTPM_MEDIATOR_PTA,CFG_DRIVERS_TPM2 \
 # secure world and cannot be granted.
 CFG_DTPM_MEDIATOR_NS_LOCALITIES ?= 0x1
 
+# D-RTM measurement endpoint: an FF-A logical partition (ID
+# CFG_TPM2_DRTM_LSP_ID) through which the Arm DRTM service in EL3, an SPMD
+# logical partition with ID CFG_TPM2_DRTM_EL3_ID, records a dynamic launch
+# in the TPM's D-RTM PCRs at locality 4. Needs OP-TEE as the S-EL1 SPMC.
+# ABI: core/arch/arm/include/tpm2_drtm_lsp.h.
+CFG_TPM2_DRTM_LSP ?= n
+$(eval $(call cfg-depends-all,CFG_TPM2_DRTM_LSP,CFG_DRIVERS_TPM2 \
+	 CFG_CORE_SEL1_SPMC))
+CFG_TPM2_DRTM_LSP_ID ?= 0x8100
+CFG_TPM2_DRTM_EL3_ID ?= 0xffc0
+# With NS virtualization the TPM driver state is per guest and the endpoint
+# runs outside any guest.
+ifeq ($(CFG_TPM2_DRTM_LSP)-$(CFG_NS_VIRTUALIZATION),y-y)
+$(error CFG_TPM2_DRTM_LSP is not supported with CFG_NS_VIRTUALIZATION)
+endif
+
 # Enable the FF-A SPMC tests in xtests
 CFG_SPMC_TESTS ?= n
 
