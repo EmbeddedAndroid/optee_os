@@ -234,7 +234,7 @@ ifneq ($(CFG_WITH_ARM_TRUSTED_FW),y)
 core-platform-subdirs += $(arch-dir)/sm
 endif
 
-ifneq ($(CFG_TEE_CORE_EMBED_INTERNAL_TESTS),y)
+ifeq ($(CFG_TEE_CORE_EMBED_INTERNAL_TESTS),y)
 core-platform-subdirs += $(arch-dir)/tests
 endif
 
