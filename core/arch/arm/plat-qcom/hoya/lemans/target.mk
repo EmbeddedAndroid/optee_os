@@ -36,6 +36,10 @@ endif
 CFG_TPM2_SPI_SE_ID ?= 15
 CFG_TPM2_SPI_CS ?= 0
 CFG_TPM2_SPI_SPEED_HZ ?= 20000000
+# D-RTM measurement endpoint for the TF-A DRTM service (FF-A, SPMC only).
+ifeq ($(CFG_CORE_SEL1_SPMC),y)
+CFG_TPM2_DRTM_LSP ?= $(CFG_DRIVERS_TPM2)
+endif
 # Test hook: measure a fixed string at locality 4 when the dTPM is up.
 CFG_QCOM_TPM2_LOC4_TEST ?= n
 
