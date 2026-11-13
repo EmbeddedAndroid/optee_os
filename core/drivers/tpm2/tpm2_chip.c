@@ -4,10 +4,12 @@
  */
 
 #include <assert.h>
+#include <atomic.h>
 #include <drivers/tpm2_chip.h>
 #include <io.h>
 #include <kernel/mutex.h>
 #include <kernel/tcg.h>
+#include <kernel/thread.h>
 #include <malloc.h>
 #include <string.h>
 #include <tpm2.h>
@@ -17,6 +19,53 @@ static struct tpm2_chip *tpm2_device;
 
 /* One command in flight on the chip, whatever the caller and locality */
 static struct mutex tpm2_chip_lock = MUTEX_INITIALIZER;
+/* Thread holding the chip through tpm2_chip_claim(), if any */
+static short int tpm2_chip_claimer = THREAD_ID_INVALID;
+
+static bool tpm2_chip_lock_get(void)
+{
+	short int claimer = atomic_load_short(&tpm2_chip_claimer);
+
+	if (claimer != THREAD_ID_INVALID &&
+	    claimer == thread_get_id_may_fail())
+		return false;
+
+	mutex_lock(&tpm2_chip_lock);
+	return true;
+}
+
+static void tpm2_chip_lock_put(bool taken)
+{
+	if (taken)
+		mutex_unlock(&tpm2_chip_lock);
+}
+
+enum tpm2_result tpm2_chip_claim(void)
+{
+	if (!tpm2_device)
+		return TPM2_ERR_NODEV;
+
+	if (!mutex_trylock(&tpm2_chip_lock))
+		return TPM2_ERR_BUSY;
+
+	/* The transport takes mutexes a suspended thread may hold */
+	if (!thread_can_rpc() && thread_suspended_holds_mutex()) {
+		mutex_unlock(&tpm2_chip_lock);
+		return TPM2_ERR_BUSY;
+	}
+
+	atomic_store_short(&tpm2_chip_claimer, thread_get_id());
+
+	return TPM2_OK;
+}
+
+void tpm2_chip_release(void)
+{
+	assert(atomic_load_short(&tpm2_chip_claimer) == thread_get_id());
+
+	atomic_store_short(&tpm2_chip_claimer, THREAD_ID_INVALID);
+	mutex_unlock(&tpm2_chip_lock);
+}
 
 static enum tpm2_result tpm2_chip_send_locality(uint8_t locality,
 						uint8_t *buf, uint32_t len)
@@ -50,14 +99,13 @@ enum tpm2_result tpm2_chip_transceive(uint8_t locality, uint8_t *cmd,
 				      uint32_t cmd_duration)
 {
 	enum tpm2_result ret = TPM2_OK;
-
-	mutex_lock(&tpm2_chip_lock);
+	bool taken = tpm2_chip_lock_get();
 
 	ret = tpm2_chip_send_locality(locality, cmd, cmd_len);
 	if (!ret)
 		ret = tpm2_chip_recv(resp, resp_len, cmd_duration);
 
-	mutex_unlock(&tpm2_chip_lock);
+	tpm2_chip_lock_put(taken);
 
 	return ret;
 }
@@ -65,6 +113,7 @@ enum tpm2_result tpm2_chip_transceive(uint8_t locality, uint8_t *cmd,
 enum tpm2_result tpm2_chip_hash_sequence(const uint8_t *data, size_t len)
 {
 	enum tpm2_result ret = TPM2_OK;
+	bool taken = false;
 
 	if (!tpm2_device || !tpm2_device->ops->hash_sequence)
 		return TPM2_ERR_NODEV;
@@ -72,9 +121,9 @@ enum tpm2_result tpm2_chip_hash_sequence(const uint8_t *data, size_t len)
 	if (!data && len)
 		return TPM2_ERR_INVALID_ARG;
 
-	mutex_lock(&tpm2_chip_lock);
+	taken = tpm2_chip_lock_get();
 	ret = tpm2_device->ops->hash_sequence(tpm2_device, data, len);
-	mutex_unlock(&tpm2_chip_lock);
+	tpm2_chip_lock_put(taken);
 
 	return ret;
 }

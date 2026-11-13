@@ -131,6 +131,17 @@ enum tpm2_result tpm2_chip_transceive(uint8_t locality, uint8_t *cmd,
  */
 enum tpm2_result tpm2_chip_hash_sequence(const uint8_t *data, size_t len);
 
+/*
+ * Take the chip for a sequence of commands without waiting: TPM2_ERR_BUSY
+ * when another thread holds it or, for a thread that cannot RPC, waits
+ * for it or a suspended thread holds any mutex (the transport may need
+ * it). Until tpm2_chip_release() the calling thread's commands go
+ * through and every other caller waits. For callers that must not wait
+ * for the normal world, such as a request from EL3.
+ */
+enum tpm2_result tpm2_chip_claim(void);
+void tpm2_chip_release(void);
+
 enum tpm2_result tpm2_chip_get_caps(struct tpm2_caps *capability);
 bool tpm2_chip_is_active_bank(uint16_t alg);
 
