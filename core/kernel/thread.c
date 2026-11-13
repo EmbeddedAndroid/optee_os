@@ -503,6 +503,29 @@ short int __noprof thread_get_id(void)
 	return ct;
 }
 
+bool thread_can_rpc(void)
+{
+	return !(threads[thread_get_id()].flags & THREAD_FLAGS_NO_RPC);
+}
+
+bool thread_suspended_holds_mutex(void)
+{
+	bool ret = false;
+	size_t n = 0;
+
+	thread_lock_global();
+	for (n = 0; n < CFG_NUM_THREADS; n++) {
+		if (threads[n].state == THREAD_STATE_SUSPENDED &&
+		    threads[n].tsd.mutex_held) {
+			ret = true;
+			break;
+		}
+	}
+	thread_unlock_global();
+
+	return ret;
+}
+
 static vaddr_t alloc_stack(size_t stack_size, bool nex)
 {
 	size_t l = stack_size_to_alloc_size(stack_size);

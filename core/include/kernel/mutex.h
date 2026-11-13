@@ -10,10 +10,28 @@
 #include <sys/queue.h>
 #include <types_ext.h>
 
+/*
+ * A thread that finds a mutex locked sleeps in the normal world until the
+ * thread unlocking it wakes it, both through an RPC. A thread that cannot
+ * call the normal world (see thread_can_rpc()) can do neither.
+ *
+ * With such a thread:
+ * - it takes a mutex for writing only when no thread sleeps on it:
+ *   otherwise mutex_trylock() fails and mutex_lock() busy-waits;
+ * - while it holds the mutex, other threads poll for it with short
+ *   OPTEE_RPC_CMD_SUSPEND sleeps instead of sleeping until woken, and its
+ *   unlock wakes nobody;
+ * - mutex_lock() waits without bound for a holder only the normal world
+ *   can resume: check thread_suspended_holds_mutex() first where that
+ *   must not happen;
+ * - it must not use the read lock functions, nor wait on or signal a
+ *   condvar.
+ */
 struct mutex {
 	unsigned spin_lock;	/* used when operating on this struct */
 	struct wait_queue wq;
 	short state;		/* -1: write, 0: unlocked, > 0: readers */
+	bool no_rpc_owner;	/* write locked by a thread that cannot RPC */
 };
 
 #define MUTEX_INITIALIZER { .wq = WAIT_QUEUE_INITIALIZER }

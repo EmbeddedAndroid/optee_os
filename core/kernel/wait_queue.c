@@ -223,3 +223,23 @@ bool wq_is_empty(struct wait_queue *wq)
 
 	return ret;
 }
+
+bool wq_have_waiter(struct wait_queue *wq)
+{
+	struct wait_queue_elem *wqe = NULL;
+	uint32_t old_itr_status = 0;
+	bool ret = false;
+
+	old_itr_status = cpu_spin_lock_xsave(&wq_spin_lock);
+
+	SLIST_FOREACH(wqe, wq, link) {
+		if (!wqe->cv && !wqe->done) {
+			ret = true;
+			break;
+		}
+	}
+
+	cpu_spin_unlock_xrestore(&wq_spin_lock, old_itr_status);
+
+	return ret;
+}

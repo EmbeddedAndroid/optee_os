@@ -20,6 +20,7 @@
 #define THREAD_FLAGS_FOREIGN_INTR_ENABLE	BIT(1)
 #define THREAD_FLAGS_EXIT_ON_FOREIGN_INTR	BIT(2)
 #define THREAD_FLAGS_FFA_ONLY			BIT(3)
+#define THREAD_FLAGS_NO_RPC			BIT(4)
 
 #define THREAD_ID_0		0
 #define THREAD_ID_INVALID	-1
@@ -34,6 +35,7 @@ struct thread_specific_data {
 #ifdef CFG_CORE_FFA
 	uint32_t rpc_target_info;
 #endif
+	unsigned int mutex_held;
 	uint32_t abort_type;
 	uint32_t abort_descr;
 	vaddr_t abort_va;
@@ -114,6 +116,19 @@ short int thread_get_id(void);
  * Returns current thread id, return -1 on failure.
  */
 short int thread_get_id_may_fail(void);
+
+/*
+ * Returns false if the current thread runs without a way to call the
+ * normal world (THREAD_FLAGS_NO_RPC), so it can neither sleep there nor
+ * wake a thread sleeping there.
+ */
+bool thread_can_rpc(void);
+
+/*
+ * Returns true if a suspended thread holds a mutex: a thread that cannot
+ * RPC would wait for it until the normal world resumes that thread.
+ */
+bool thread_suspended_holds_mutex(void);
 
 /* Returns Thread Specific Data (TSD) pointer. */
 struct thread_specific_data *thread_get_tsd(void);

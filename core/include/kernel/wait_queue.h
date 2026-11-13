@@ -57,6 +57,12 @@ void wq_wake_next(struct wait_queue *wq, const void *sync_obj,
 /* Returns true if the wait queue doesn't contain any elements */
 bool wq_is_empty(struct wait_queue *wq);
 
+/*
+ * Returns true if an element of the wait queue still waits to be woken,
+ * not counting condvar waiters
+ */
+bool wq_have_waiter(struct wait_queue *wq);
+
 void wq_promote_condvar(struct wait_queue *wq, struct condvar *cv,
 			bool only_one, const void *sync_obj, const char *fname,
 			int lineno);
