@@ -63,6 +63,7 @@ static uint32_t tpm2_get_cmd_duration(uint32_t cmd_code)
 {
 	switch (cmd_code) {
 	case TPM2_CC_STARTUP:
+	case TPM2_CC_PCR_EVENT:
 	case TPM2_CC_PCR_EXTEND:
 	case TPM2_CC_GET_CAPABILITY:
 		return TPM2_CMD_DURATION_MEDIUM;
@@ -412,6 +413,59 @@ enum tpm2_result tpm2_pcr_extend_locality(uint8_t locality, uint8_t pcr_idx,
 	tpm2_cmd_add_u32(buf, buf_len, count);
 	tpm2_cmd_add_u16(buf, buf_len, alg);
 	tpm2_cmd_add(buf, buf_len, digest, digest_len);
+
+	ret = tpm2_transmit_locality(locality, buf,
+				     tpm2_cmd_len((struct tpm2_cmd *)buf),
+				     resp_buf, &resp_len);
+	if (ret)
+		goto out;
+
+	DHEXDUMP(resp_buf, tpm2_cmd_len((struct tpm2_cmd *)resp_buf));
+out:
+	free(resp_buf);
+	free(buf);
+
+	return ret;
+}
+
+enum tpm2_result tpm2_pcr_event_locality(uint8_t locality, uint8_t pcr_idx,
+					 const void *data, uint32_t len)
+{
+	/* Header, handle, password session and TPM2B_EVENT */
+	uint32_t buf_len = 10 + 4 + 13 + 2 + TPM2_PCR_EVENT_MAX_DATA;
+	/* Header, parameter size, TPML_DIGEST_VALUES, session */
+	uint32_t resp_len = 512;
+	struct tpm2_caps caps = { };
+	enum tpm2_result ret = TPM2_OK;
+	uint8_t *resp_buf = NULL;
+	void *buf = NULL;
+
+	if ((!data && len) || len > TPM2_PCR_EVENT_MAX_DATA)
+		return TPM2_ERR_INVALID_ARG;
+
+	ret = tpm2_chip_get_caps(&caps);
+	if (ret)
+		return ret;
+
+	if (pcr_idx >= caps.num_pcrs)
+		return TPM2_ERR_INVALID_ARG;
+
+	buf = malloc(buf_len);
+	resp_buf = malloc(resp_len);
+	if (!buf || !resp_buf) {
+		ret = TPM2_ERR_GENERIC;
+		goto out;
+	}
+
+	tpm2_cmd_init_hdr(buf, buf_len, TPM2_ST_SESSIONS, TPM2_CC_PCR_EVENT);
+	tpm2_cmd_add_u32(buf, buf_len, pcr_idx);
+
+	ret = tpm2_add_password_auth_cmd(buf, buf_len, NULL, 0);
+	if (ret)
+		goto out;
+
+	tpm2_cmd_add_u16(buf, buf_len, len);
+	tpm2_cmd_add(buf, buf_len, (uint8_t *)data, len);
 
 	ret = tpm2_transmit_locality(locality, buf,
 				     tpm2_cmd_len((struct tpm2_cmd *)buf),

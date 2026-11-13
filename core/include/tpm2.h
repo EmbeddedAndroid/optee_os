@@ -29,6 +29,7 @@
 
 /* Command Codes */
 #define	TPM2_CC_NV_WRITE	U(0x00000137)
+#define	TPM2_CC_PCR_EVENT	U(0x0000013C)
 #define	TPM2_CC_SELFTEST	U(0x00000143)
 #define TPM2_CC_STARTUP		U(0x00000144)
 #define	TPM2_CC_NV_READ		U(0x0000014E)
@@ -225,6 +226,15 @@ enum tpm2_result tpm2_pcr_extend(uint8_t pcr_idx, uint16_t alg, void *digest,
 enum tpm2_result tpm2_pcr_extend_locality(uint8_t locality, uint8_t pcr_idx,
 					  uint16_t alg, void *digest,
 					  uint32_t digest_len);
+
+/*
+ * TPM2_PCR_Event at TIS locality @locality: the TPM hashes the @len bytes
+ * of event data at @data (up to TPM2_PCR_EVENT_MAX_DATA) with the
+ * algorithm of every active bank and extends PCR @pcr_idx with them.
+ */
+#define TPM2_PCR_EVENT_MAX_DATA	U(1024)
+enum tpm2_result tpm2_pcr_event_locality(uint8_t locality, uint8_t pcr_idx,
+					 const void *data, uint32_t len);
 
 /*
  * Get hash length corresponding to TPM algorithm
