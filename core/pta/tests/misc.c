@@ -12,6 +12,7 @@
 #include <kernel/panic.h>
 #include <malloc.h>
 #include <mm/core_memprot.h>
+#include <mm/core_mmu.h>
 #include <stdbool.h>
 #include <trace.h>
 #include <util.h>
@@ -660,6 +661,63 @@ static int self_test_va2pa(void)
 	return ret;
 }
 
+/*
+ * With LPAE a late mapping of one page must map that page only, not the
+ * translation table block around it.
+ */
+static int self_test_add_mapping(void)
+{
+	vaddr_t va = 0;
+	paddr_t pa = 0;
+	void *buf = NULL;
+	int ret = 0;
+
+	/*
+	 * Without LPAE and with CFG_NS_VIRTUALIZATION late mappings keep
+	 * the block granularity.
+	 */
+	if (!IS_ENABLED(CFG_WITH_LPAE) || IS_ENABLED(CFG_NS_VIRTUALIZATION))
+		return 0;
+
+	buf = memalign(SMALL_PAGE_SIZE, 2 * SMALL_PAGE_SIZE);
+	if (!buf)
+		return -1;
+
+	/*
+	 * A block mapping would cover the page after @pa unless @pa ends a
+	 * block, and at most one of two consecutive pages does.
+	 */
+	pa = virt_to_phys(buf);
+	if ((pa & CORE_MMU_PGDIR_MASK) ==
+	    CORE_MMU_PGDIR_SIZE - SMALL_PAGE_SIZE)
+		pa += SMALL_PAGE_SIZE;
+
+	if (phys_to_virt(pa, MEM_AREA_RAM_SEC, SMALL_PAGE_SIZE)) {
+		IMSG("PA %#"PRIxPA" already mapped, test skipped", pa);
+		goto out;
+	}
+
+	va = (vaddr_t)core_mmu_add_mapping(MEM_AREA_RAM_SEC, pa,
+					   SMALL_PAGE_SIZE);
+	if (!va) {
+		LOG("core_mmu_add_mapping(%#"PRIxPA") failed", pa);
+		ret = -1;
+		goto out;
+	}
+
+	if (check_virt_to_phys(va, pa, MEM_AREA_RAM_SEC) ||
+	    check_virt_to_phys(va + SMALL_PAGE_SIZE, 0, MEM_AREA_RAM_SEC))
+		ret = -1;
+
+	if (core_mmu_remove_mapping(MEM_AREA_RAM_SEC, (void *)va,
+				    SMALL_PAGE_SIZE) ||
+	    check_virt_to_phys(va, 0, MEM_AREA_RAM_SEC))
+		ret = -1;
+out:
+	free(buf);
+	return ret;
+}
+
 #ifdef CFG_CORE_SANITIZE_KADDRESS
 
 static int self_test_asan(void)
@@ -709,7 +767,7 @@ TEE_Result core_self_tests(uint32_t nParamTypes __unused,
 	    self_test_sub_overflow() || self_test_mul_unsigned_overflow() ||
 	    self_test_division() || self_test_malloc() ||
 	    self_test_nex_malloc() || self_test_va2pa() ||
-	    self_test_asan()) {
+	    self_test_add_mapping() || self_test_asan()) {
 		EMSG("some self_test_xxx failed! you should enable local LOG");
 		return TEE_ERROR_GENERIC;
 	}
