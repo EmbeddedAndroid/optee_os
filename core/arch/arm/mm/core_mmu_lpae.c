@@ -201,6 +201,19 @@
 #define NUM_BASE_TABLES	1
 #endif
 
+/*
+ * Late mappings (core_mmu_add_mapping()) divide the blocks of
+ * MEM_AREA_RES_VASPACE they use into small page tables, one more for a
+ * range that doesn't end on a block boundary. NS virtualization keeps
+ * the blocks (share_region() needs whole blocks).
+ */
+#ifdef CFG_NS_VIRTUALIZATION
+#define XLAT_TABLE_RES_VASPACE_EXTRA	0
+#else
+#define XLAT_TABLE_RES_VASPACE_EXTRA \
+	((CFG_RESERVED_VASPACE_SIZE) / CORE_MMU_PGDIR_SIZE + 1)
+#endif
+
 #ifndef MAX_XLAT_TABLES
 #ifdef CFG_NS_VIRTUALIZATION
 #	define XLAT_TABLE_VIRTUALIZATION_EXTRA 3
@@ -222,6 +235,7 @@
 #define MAX_XLAT_TABLES		(XLAT_TABLE_TEE_EXTRA + \
 				 XLAT_TABLE_VIRTUALIZATION_EXTRA + \
 				 XLAT_TABLE_ASLR_EXTRA + \
+				 XLAT_TABLE_RES_VASPACE_EXTRA + \
 				 XLAT_TABLE_USER_EXTRA + \
 				 IS_ENABLED(CFG_CORE_SANITIZE_KADDRESS) + \
 				 IS_ENABLED(CFG_DYN_CONFIG) + \
