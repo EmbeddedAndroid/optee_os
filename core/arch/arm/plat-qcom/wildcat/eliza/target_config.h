@@ -58,4 +58,8 @@
 #define LPASS_ALT_RESET_Q6SS		0xeea000
 #define TURING_QDSP6SS			0x2300000
 
+/* IRIS video codec registers, up to the video clock controller */
+#define IRIS_BASE			UL(0x0aa00000)
+#define IRIS_SIZE			UL(0x000f0000)
+
 #endif /* TARGET_CONFIG_H */
