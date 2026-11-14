@@ -2441,14 +2441,81 @@ core_mmu_find_mapping_exclusive(enum teecore_memtypes type, size_t len)
 	return map_found;
 }
 
+/* Phys mem pools are set up: translation tables can be allocated */
+static bool phys_mem_ready __nex_bss;
+
+/*
+ * Make sure that the range [@va, @va + @len) is covered by small page
+ * translation tables, dividing the blocks covering it.
+ */
+static bool split_to_small_pages(vaddr_t va, size_t len, bool secure)
+{
+	struct core_mmu_table_info tbl_info = { };
+	uint32_t exceptions = 0;
+	vaddr_t end = 0;
+	bool ret = true;
+
+	if (ADD_OVERFLOW(va, len, &end))
+		return false;
+
+	exceptions = mmu_lock();
+
+	while (va < end) {
+		if (!core_mmu_find_table(NULL, va, UINT_MAX, &tbl_info)) {
+			ret = false;
+			break;
+		}
+
+		if (tbl_info.shift == SMALL_PAGE_SHIFT) {
+			if (ADD_OVERFLOW(tbl_info.va_base,
+					 tbl_info.num_entries * SMALL_PAGE_SIZE,
+					 &va))
+				break;
+			continue;
+		}
+
+		/* Not a table entry, else the walk would have gone deeper */
+		if (!core_mmu_entry_to_finer_grained(&tbl_info,
+						     core_mmu_va2idx(&tbl_info,
+								     va),
+						     secure)) {
+			ret = false;
+			break;
+		}
+	}
+
+	mmu_unlock(exceptions);
+
+	return ret;
+}
+
+/* Tell whether no block of @granule in [@va, @va + @len) is divided */
+static bool range_is_undivided(vaddr_t va, size_t len, size_t granule)
+{
+	struct core_mmu_table_info tbl_info = { };
+	vaddr_t end = 0;
+
+	if (ADD_OVERFLOW(va, len, &end))
+		return false;
+
+	for (; va < end; va += granule)
+		if (!core_mmu_find_table(NULL, va, UINT_MAX, &tbl_info) ||
+		    BIT64(tbl_info.shift) != granule)
+			return false;
+
+	return true;
+}
+
 void *core_mmu_add_mapping(enum teecore_memtypes type, paddr_t addr, size_t len)
 {
+	uint32_t attr = core_mmu_type_to_attr(type);
 	struct memory_map *mem_map = &static_memory_map;
 	struct core_mmu_table_info tbl_info = { };
 	struct tee_mmap_region *map = NULL;
 	struct tee_mmap_region r = { };
 	size_t granule = 0;
 	vaddr_t tbl_span = 0;
+	bool divide = false;
 	vaddr_t end = 0;
 	paddr_t p = 0;
 	size_t l = 0;
@@ -2473,11 +2540,39 @@ void *core_mmu_add_mapping(enum teecore_memtypes type, paddr_t addr, size_t len)
 		return NULL;
 
 	granule = BIT64(tbl_info.shift);
+
+	/*
+	 * Blocks for a request that isn't block aligned would map the memory
+	 * around it too, cacheable for RAM, where speculative accesses can
+	 * reach it. Device memory isn't accessed that way and keeps blocks,
+	 * unless one it needs was divided before. With CFG_DYN_CONFIG no table
+	 * can be allocated before the phys mem pools exist. An ARMv7
+	 * short-descriptor small page table has one security state, which this
+	 * range can't have. share_region() replicates nexus late mappings (FF-A
+	 * RX/TX buffers) into each guest partition and needs whole blocks. The
+	 * division is left out on RISC-V, where it is untested.
+	 */
+	divide = (IS_ENABLED(CFG_ARM32_core) || IS_ENABLED(CFG_ARM64_core)) &&
+		 IS_ENABLED(CFG_WITH_LPAE) &&
+		 !IS_ENABLED(CFG_NS_VIRTUALIZATION) &&
+		 (!IS_ENABLED(CFG_DYN_CONFIG) || phys_mem_ready) &&
+		 (granule == SMALL_PAGE_SIZE ||
+		  (mattr_is_cached(attr) &&
+		   ((addr | len | map->va) & (granule - 1))) ||
+		  !range_is_undivided(map->va,
+				      len + (addr & (granule - 1)), granule));
+	if (divide)
+		granule = SMALL_PAGE_SIZE;
+
 	p = ROUNDDOWN2(addr, granule);
 	l = ROUNDUP2(len + addr - p, granule);
 
 	/* Ban overflowing virtual addresses */
 	if (map->size < l)
+		return NULL;
+
+	if (divide &&
+	    !split_to_small_pages(map->va, l, attr & TEE_MATTR_SECURE))
 		return NULL;
 
 	if (static_memory_map.count >= static_memory_map.alloc_count) {
@@ -2504,7 +2599,7 @@ void *core_mmu_add_mapping(enum teecore_memtypes type, paddr_t addr, size_t len)
 		.size = l,
 		.type = type,
 		.region_size = granule,
-		.attr = core_mmu_type_to_attr(type),
+		.attr = attr,
 		.pa = p,
 	};
 	map->va += l;
@@ -2920,4 +3015,6 @@ void core_mmu_init_phys_mem(void)
 #endif
 #endif /*!CFG_WITH_PAGER*/
 	}
+
+	phys_mem_ready = true;
 }
