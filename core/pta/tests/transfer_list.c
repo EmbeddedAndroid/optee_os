@@ -234,11 +234,59 @@ free_tl:
 	return ret;
 }
 
+/*
+ * Lists that don't start on a page boundary, one within a page and one
+ * spanning pages, found again with transfer_list_map() and unmapped, as
+ * the boot path does with the list passed by the previous boot stage.
+ */
+static TEE_Result transfer_list_map_test(paddr_t pa, size_t max_size,
+					 size_t data_size)
+{
+	struct transfer_list_header *tl = NULL;
+
+	tl = transfer_list_init(pa, max_size);
+	if (!tl)
+		return TEE_ERROR_GENERIC;
+	if (data_size &&
+	    !transfer_list_add(tl, TEST_TE1_ID, data_size, NULL)) {
+		transfer_list_unmap_nosync(tl);
+		return TEE_ERROR_GENERIC;
+	}
+	transfer_list_unmap_sync(tl);
+
+	tl = transfer_list_map(pa);
+	if (!tl)
+		return TEE_ERROR_GENERIC;
+	transfer_list_unmap_nosync(tl);
+
+	return TEE_SUCCESS;
+}
+
+static TEE_Result transfer_list_map_tests(void)
+{
+	TEE_Result ret = TEE_SUCCESS;
+	tee_mm_entry_t *mm = NULL;
+	paddr_t pa = 0;
+
+	mm = phys_mem_core_alloc(4 * SMALL_PAGE_SIZE);
+	if (!mm)
+		return TEE_ERROR_OUT_OF_MEMORY;
+	pa = tee_mm_get_smem(mm) + SMALL_PAGE_SIZE / 2;
+
+	ret = transfer_list_map_test(pa, TEST_TL_MAX_SIZE, 0);
+	if (!ret)
+		ret = transfer_list_map_test(pa, 3 * SMALL_PAGE_SIZE,
+					     2 * SMALL_PAGE_SIZE);
+
+	tee_mm_free(mm);
+	return ret;
+}
+
 /* Exported entrypoint for transfer_list tests */
 TEE_Result core_transfer_list_tests(uint32_t nParamTypes __unused,
 				    TEE_Param pParams[TEE_NUM_PARAMS] __unused)
 {
-	if (transfer_list_tests())
+	if (transfer_list_tests() || transfer_list_map_tests())
 		return TEE_ERROR_GENERIC;
 
 	return TEE_SUCCESS;
