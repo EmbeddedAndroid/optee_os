@@ -57,17 +57,30 @@ struct transfer_list_header *transfer_list_map(paddr_t pa)
 		}
 		old_sz = sz;
 
-		if (transfer_list_check_header(tl) == TL_OPS_NONE) {
+		/*
+		 * Only the header is known to be mapped here: the checksum
+		 * covers the whole list. Unmapping uses max_size, so that is
+		 * the size of the mapping kept.
+		 */
+		if (tl->signature != TRANSFER_LIST_SIGNATURE ||
+		    tl->max_size < sizeof(*tl)) {
+			EMSG("No transfer list at PA %#"PRIxPA, pa);
 			unmap_list(tl, sz);
 			return NULL;
 		}
+		if (tl->max_size == sz)
+			break;
 
-		if (tl->max_size <= sz)
-			return tl;
-
-		sz = ROUNDUP(tl->max_size, SMALL_PAGE_SIZE);
+		sz = tl->max_size;
 		unmap_list(tl, old_sz);
 	}
+
+	if (transfer_list_check_header(tl) == TL_OPS_NONE) {
+		unmap_list(tl, sz);
+		return NULL;
+	}
+
+	return tl;
 }
 
 void transfer_list_unmap_sync(struct transfer_list_header *tl)
