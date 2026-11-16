@@ -203,10 +203,10 @@ static TEE_Result clk_dt_probe(void)
 {
 	const void *fdt = get_secure_dt();
 
-	DMSG("Probing clocks from devicetree");
 	if (!fdt)
-		panic();
+		return TEE_SUCCESS;
 
+	DMSG("Probing clocks from devicetree");
 	clk_probe_node(fdt, -1);
 
 	clk_probe_assigned(fdt, -1);
