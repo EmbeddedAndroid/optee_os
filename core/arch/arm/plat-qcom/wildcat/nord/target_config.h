@@ -79,6 +79,9 @@
 #define HPASS_Q6_COUNT			3
 #endif
 
+#define IRIS_BASE			UL(0x0aa00000)
+#define IRIS_SIZE			ULL(0x00200000)
+
 #define RPMH_PDC_GLOBAL_BASE		UL(0x0b5e6000)
 #define RPMH_PDC_GLOBAL_SIZE		UL(0x0000a000)
 
