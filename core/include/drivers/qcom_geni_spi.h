@@ -109,6 +109,10 @@ struct qup_spi_data {
 	size_t tx_rem_bytes;
 	size_t rx_rem_bytes;
 	unsigned int bytes_per_word;
+	/* Index of this SE in qup_spi_config[] */
+	size_t cfg_idx;
+	/* SE configuration count when configure() last succeeded */
+	unsigned int cfg_gen;
 };
 
 /*

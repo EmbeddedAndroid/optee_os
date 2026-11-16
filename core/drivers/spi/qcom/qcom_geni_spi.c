@@ -15,6 +15,7 @@
 #include <kernel/mutex.h>
 #include <keep.h>
 #include <mm/core_memprot.h>
+#include <stdlib.h>
 #include <string.h>
 #include <trace.h>
 #include <util.h>
@@ -255,6 +256,13 @@ struct elf_se_hdr {
 #define QUP_SPI_M_CMD_TIMEOUT_US	1000000
 #define QUP_SPI_CANCEL_TIMEOUT_US	1000000
 #define QUP_SPI_ABORT_TIMEOUT_US	1000000
+
+/*
+ * Count of configurations written to each qup_spi_config[] SE. The SE holds
+ * whatever the last instance on it configured, so an instance whose count
+ * is stale must configure the SE again before using it.
+ */
+static unsigned int *qup_spi_se_cfg_gen;
 
 static struct qup_spi_data *to_qup_spi(struct spi_chip *chip)
 {
@@ -515,6 +523,9 @@ static void qup_spi_configure(struct spi_chip *chip)
 		qup_spi_clk_disable(qs);
 		return;
 	}
+
+	/* Stale for every instance from the first write, success or not */
+	qup_spi_se_cfg_gen[qs->cfg_idx]++;
 	io_write32(qs->base + SE_GENI_RX_WATERMARK_REG, qs->rx_fifo_depth - 3);
 	io_write32(qs->base + SE_GENI_RX_RFR_WATERMARK_REG,
 		   qs->rx_fifo_depth - 2);
@@ -564,6 +575,7 @@ static void qup_spi_configure(struct spi_chip *chip)
 	qs->rx_rem_bytes = 0;
 	mutex_unlock(&qs->lock);
 	qup_spi_clk_disable(qs);
+	qs->cfg_gen = qup_spi_se_cfg_gen[qs->cfg_idx];
 	qs->configured = true;
 }
 
@@ -705,6 +717,9 @@ static void qup_spi_start(struct spi_chip *chip)
 	struct qup_spi_data *qs = to_qup_spi(chip);
 
 	qs->started = false;
+
+	if (qs->configured && qs->cfg_gen != qup_spi_se_cfg_gen[qs->cfg_idx])
+		qup_spi_configure(chip);
 
 	if (!qs->configured) {
 		EMSG("QUP SPI %u: start before configure", qs->id);
@@ -1314,6 +1329,7 @@ bool qup_spi_get_platform_data(unsigned int qup_spi_id,
 			return false;
 		}
 
+		qs->cfg_idx = i;
 		qs->itr_num = qup_spi_config[i].itr_num;
 		qs->clk_hz = qup_spi_config[i].clk_hz;
 		qs->se_clock_name = qup_spi_config[i].se_clock_name;
@@ -1413,6 +1429,13 @@ TEE_Result qup_spi_init(struct qup_spi_data *qs, unsigned int qup_spi_id)
 
 	if (!qup_spi_get_platform_data(qup_spi_id, qs))
 		return TEE_ERROR_ITEM_NOT_FOUND;
+
+	if (!qup_spi_se_cfg_gen) {
+		qup_spi_se_cfg_gen = calloc(qup_spi_config_count,
+					    sizeof(*qup_spi_se_cfg_gen));
+		if (!qup_spi_se_cfg_gen)
+			return TEE_ERROR_OUT_OF_MEMORY;
+	}
 
 	qs->chip.ops = &qup_spi_ops;
 	mutex_init(&qs->lock);
