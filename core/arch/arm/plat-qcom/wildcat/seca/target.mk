@@ -25,7 +25,9 @@ CFG_QCOM_PAS_PTA ?= y
 QCOM_PAS_SOC := nord
 
 ifeq ($(CFG_QCOM_PAS_PTA),y)
-CFG_PAS_MD_SLOTS ?= 8
+# One metadata slot per PAS image in use: four DSPs, their four DTB
+# images and the iris firmware
+CFG_PAS_MD_SLOTS ?= 9
 CFG_RESERVED_VASPACE_SIZE ?= (64 * 1024 * 1024)
 CFG_IN_TREE_EARLY_TAS += qcom_pas/cff7d191-7ca0-4784-af13-48223b9a4fbe
 endif
