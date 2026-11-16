@@ -5,6 +5,7 @@
 
 #include <io.h>
 #include <kernel/delay.h>
+#include <platform_config.h>
 #include <stdint.h>
 #include <trace.h>
 #include <util.h>
@@ -36,7 +37,6 @@
 #define WRAPPER_SEC_CSR7		(TOP_BASE + 0x109c)
 
 #define CORE_TZ_OFFSET			0x1000
-#define NUM_CORES			2
 
 #define CORE_TZ_SEC_THRESHOLD_HEVC		0x4
 #define CORE_TZ_SEC_THRESHOLD_H264		0x8
@@ -154,7 +154,7 @@ static void iris_program_sec_sid_registers(vaddr_t iris_base)
 	vaddr_t core0_base = iris_base + IRIS_CORE0_TZ_REG_BASE;
 	unsigned int core = 0;
 
-	for (core = 0; core < NUM_CORES; core++) {
+	for (core = 0; core < IRIS_VCODEC_COUNT; core++) {
 		vaddr_t core_base = core0_base + core * CORE_TZ_OFFSET;
 
 		iris_program_core_thresholds(core_base);

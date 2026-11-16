@@ -10,6 +10,9 @@
 #define CDSP_COUNT			2
 #define HPASS_Q6_COUNT			2
 
+/* The iris video codec has one of the two Nord vcodec cores. */
+#define IRIS_VCODEC_COUNT		1
+
 #define DTB_CHIP_FAMILY_ID		0x00af02e6
 
 /* SecaAU keeps the Nord address map for everything OP-TEE uses. */

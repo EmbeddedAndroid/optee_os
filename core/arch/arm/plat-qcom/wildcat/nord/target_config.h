@@ -82,6 +82,11 @@
 #define IRIS_BASE			UL(0x0aa00000)
 #define IRIS_SIZE			ULL(0x00200000)
 
+/* vcodec cores in the iris video codec */
+#ifndef IRIS_VCODEC_COUNT
+#define IRIS_VCODEC_COUNT		2
+#endif
+
 #define RPMH_PDC_GLOBAL_BASE		UL(0x0b5e6000)
 #define RPMH_PDC_GLOBAL_SIZE		UL(0x0000a000)
 
