@@ -1,4 +1,5 @@
 srcs-y += pta_qcom_pas.c
+srcs-y += pas_camera.c
 srcs-y += pas_core.c
 srcs-y += pas_elf.c
 srcs-y += pas_iris.c
