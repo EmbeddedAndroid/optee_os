@@ -97,4 +97,5 @@
 
 #define TITAN_SS_BASE			UL(0x0ac00000)
 #define TITAN_SS_SIZE			UL(0x00200000)
+#define CAMERA_ICP_QOS			0x0a0a
 #endif /* TARGET_CONFIG_H */

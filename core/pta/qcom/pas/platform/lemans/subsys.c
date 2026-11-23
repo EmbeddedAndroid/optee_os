@@ -8,16 +8,17 @@
 #include <stddef.h>
 #include <util.h>
 
-#include "camera.h"
 #include "cdsp0.h"
 #include "cdsp1.h"
 #include "gpdsp0.h"
 #include "gpdsp1.h"
 #include "iris.h"
 #include "lpass.h"
+#include "pas_camera.h"
 #include "pas_iris.h"
 #include "pas_subsys.h"
 
+static struct pas_camera_data camera_data = { .qos = CAMERA_ICP_QOS };
 static struct pas_iris_data iris_data;
 
 static struct qcom_pas_subsys subsystems[] = {
@@ -93,8 +94,9 @@ static struct qcom_pas_subsys subsystems[] = {
 			.base.pa = TITAN_SS_BASE,
 			.size = TITAN_SS_SIZE,
 			.map_type = MEM_AREA_IO_NSEC,
+			.subsystem_data = &camera_data,
 		},
-		.ops = &camera_ops,
+		.ops = &pas_camera_icp_ops,
 		.reset_seq = QCOM_PAS_RESET_NONE,
 	},
 };
