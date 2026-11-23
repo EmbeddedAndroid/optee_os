@@ -5,11 +5,12 @@
 
 #include <io.h>
 #include <kernel/delay.h>
+#include <platform_config.h>
 #include <stdint.h>
 #include <trace.h>
 #include <util.h>
 
-#include "camera.h"
+#include "pas_camera.h"
 
 #define ICP_SYS_RESET			0x0000
 #define ICP_SYS_RESET_FUNC_RESET	BIT(4)
@@ -21,7 +22,6 @@
 #define ICP_SYS_STATUS_LX7_STANDBYWFI	BIT(7)
 
 #define ICP_SYS_ACCESS			0x0010
-#define ICP_SYS_ACCESS_QOS_PRIORITY	0x0A0A
 
 #define ICP_SYS_SID1_START_ADDR		0x0048
 #define ICP_SYS_SID1_START_ADDR_EN	BIT(0)
@@ -49,7 +49,7 @@ static TEE_Result camera_fw_start(struct qcom_pas_data *data)
 	io_write32(base + ICP_SYS_SID1_START_ADDR, 0);
 	io_write32(base + ICP_SYS_SID1_END_ADDR, sid_end);
 
-	io_write32(base + ICP_SYS_ACCESS, ICP_SYS_ACCESS_QOS_PRIORITY);
+	io_write32(base + ICP_SYS_ACCESS, CAMERA_ICP_QOS);
 
 	reg = io_read32(base + ICP_SYS_SID1_START_ADDR);
 	io_write32(base + ICP_SYS_SID1_START_ADDR,
@@ -98,7 +98,7 @@ static TEE_Result camera_fw_set_state(struct qcom_pas_data *data, bool power_on)
 	return TEE_ERROR_TIMEOUT;
 }
 
-const struct qcom_pas_ops camera_ops = {
+const struct qcom_pas_ops pas_camera_icp_ops = {
 	.fw_start = camera_fw_start,
 	.fw_shutdown = camera_fw_shutdown,
 	.fw_set_state = camera_fw_set_state,

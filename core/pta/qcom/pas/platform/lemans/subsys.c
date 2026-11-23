@@ -8,13 +8,13 @@
 #include <stddef.h>
 #include <util.h>
 
-#include "camera.h"
 #include "cdsp0.h"
 #include "cdsp1.h"
 #include "gpdsp0.h"
 #include "gpdsp1.h"
 #include "iris.h"
 #include "lpass.h"
+#include "pas_camera.h"
 #include "pas_iris.h"
 #include "pas_subsys.h"
 
@@ -94,7 +94,7 @@ static struct qcom_pas_subsys subsystems[] = {
 			.size = TITAN_SS_SIZE,
 			.map_type = MEM_AREA_IO_NSEC,
 		},
-		.ops = &camera_ops,
+		.ops = &pas_camera_icp_ops,
 		.reset_seq = QCOM_PAS_RESET_NONE,
 	},
 };
