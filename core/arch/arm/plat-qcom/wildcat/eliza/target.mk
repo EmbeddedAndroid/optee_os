@@ -28,6 +28,9 @@ CFG_DRIVERS_QCOM_CLK ?= y
 
 CFG_QCOM_PAS_PTA ?= y
 
+# The camera ICP can be left out of the PAS pseudo-TA.
+CFG_QCOM_PAS_CAMERA ?= y
+
 ifeq ($(CFG_QCOM_PAS_PTA),y)
 CFG_IN_TREE_EARLY_TAS += qcom_pas/cff7d191-7ca0-4784-af13-48223b9a4fbe
 endif
