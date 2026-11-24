@@ -63,7 +63,9 @@
 #define IRIS_SIZE			UL(0x000f0000)
 
 #define CAMERA_ICP_SYS_BASE		UL(0x0ac05000)
-#define CAMERA_ICP_SYS_SIZE		UL(0x00001000)
+/* ICP_SYS up to the end of the domain ID mask block */
+#define CAMERA_ICP_SYS_SIZE		UL(0x00007000)
+#define CAMERA_ICP_DOM_MASK_OFFSET	0x6000
 #define CAMERA_ICP1_SYS_BASE		UL(0x0ac15000)
 #define CAMERA_ICP_QOS			0x0808
 
