@@ -11,13 +11,18 @@
  *
  * It is a mediator rather than a plain pass-through because the secure world
  * stays the owner of the chip: it polices which TIS localities the normal
- * world may use (locality 4 is never granted, see OP-TEE/optee_os#8160).
+ * world may use (locality 4 is never granted, see OP-TEE/optee_os#8160)
+ * and, under FF-A, which normal world endpoint may use it at all.
  */
 
 #include <assert.h>
 #include <drivers/tpm2_chip.h>
+#ifdef CFG_CORE_FFA
+#include <ffa.h>
+#endif
 #include <inttypes.h>
 #include <kernel/pseudo_ta.h>
+#include <kernel/thread.h>
 #include <pta_dtpm_mediator.h>
 #include <string.h>
 #include <tee_api_defines.h>
@@ -88,10 +93,33 @@ static TEE_Result tpm_pta_submit(uint32_t ptypes,
 	return TEE_SUCCESS;
 }
 
+/*
+ * Under FF-A every normal world guest reaches this PTA through the one
+ * OP-TEE context, so the PTA itself refuses all but the endpoints up to
+ * CFG_DTPM_MEDIATOR_FFA_MAX_ENDPOINT. Other guests would otherwise share
+ * the hardware domain's localities, PCRs and NV.
+ */
+static bool caller_may_use_tpm(void)
+{
+#ifdef CFG_CORE_FFA
+	/* The thread keeps the request's src/dst swapped: dst is the caller */
+	uint16_t id = FFA_DST(thread_get_tsd()->rpc_target_info);
+
+	if (id > CFG_DTPM_MEDIATOR_FFA_MAX_ENDPOINT) {
+		DMSG("dTPM mediator: FF-A endpoint %#" PRIx16 " refused", id);
+		return false;
+	}
+#endif
+	return true;
+}
+
 static TEE_Result invoke_command(void *session __unused, uint32_t cmd,
 				 uint32_t ptypes,
 				 TEE_Param params[TEE_NUM_PARAMS])
 {
+	if (!caller_may_use_tpm())
+		return TEE_ERROR_ACCESS_DENIED;
+
 	switch (cmd) {
 	case PTA_DTPM_MEDIATOR_SUBMIT_COMMAND:
 		return tpm_pta_submit(ptypes, params, false);
@@ -116,7 +144,8 @@ static TEE_Result open_session(uint32_t ptypes __unused,
 	 * TPM stack, so restrict it to the REE kernel and reject other TAs and
 	 * REE user space.
 	 */
-	if (ta_session->clnt_id.login != TEE_LOGIN_REE_KERNEL)
+	if (ta_session->clnt_id.login != TEE_LOGIN_REE_KERNEL ||
+	    !caller_may_use_tpm())
 		return TEE_ERROR_ACCESS_DENIED;
 
 	/*

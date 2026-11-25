@@ -1261,6 +1261,10 @@ $(eval $(call cfg-enable-all-depends,CFG_DTPM_MEDIATOR_PTA,CFG_DRIVERS_TPM2 \
 # per locality. Locality 0 is required; locality 4 is reserved for the
 # secure world and cannot be granted.
 CFG_DTPM_MEDIATOR_NS_LOCALITIES ?= 0x1
+# Under FF-A, the highest normal world endpoint ID that may use that PTA.
+# 0 is a kernel without a hypervisor or the hypervisor itself; Xen gives
+# domain N the ID N + 1, so the default 1 serves dom0 and no other guest.
+CFG_DTPM_MEDIATOR_FFA_MAX_ENDPOINT ?= 1
 
 # D-RTM measurement endpoint: an FF-A logical partition (ID
 # CFG_TPM2_DRTM_LSP_ID) through which the Arm DRTM service in EL3, an SPMD
