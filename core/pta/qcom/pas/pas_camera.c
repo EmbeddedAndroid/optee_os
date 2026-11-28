@@ -28,6 +28,12 @@
 
 #define ICP_SYS_SID1_END_ADDR		0x004c
 
+/* Domain ID masks the ICP firmware checks each frame request against */
+#define ICP_DOM_0_CFG			0x0000
+#define ICP_DOM_1_CFG			0x0020
+#define ICP_DOM_0_CFG_MASK		0x00ff00ff
+#define ICP_DOM_1_CFG_MASK		0xff00ff00
+
 #define LX7_WFI_TIMEOUT_US		300000
 
 static TEE_Result camera_fw_start(struct qcom_pas_data *data)
@@ -54,6 +60,13 @@ static TEE_Result camera_fw_start(struct qcom_pas_data *data)
 	reg = io_read32(base + ICP_SYS_SID1_START_ADDR);
 	io_write32(base + ICP_SYS_SID1_START_ADDR,
 		   reg | ICP_SYS_SID1_START_ADDR_EN);
+
+	if (cam->dom_mask_offset) {
+		io_write32(base + cam->dom_mask_offset + ICP_DOM_0_CFG,
+			   ICP_DOM_0_CFG_MASK);
+		io_write32(base + cam->dom_mask_offset + ICP_DOM_1_CFG,
+			   ICP_DOM_1_CFG_MASK);
+	}
 
 	io_write32(base + ICP_SYS_CONTROL, ICP_SYS_CONTROL_CPU_EN);
 

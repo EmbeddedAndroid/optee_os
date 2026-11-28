@@ -11,9 +11,15 @@
 #include "cdsp.h"
 #include "iris.h"
 #include "lpass.h"
+#include "pas_camera.h"
 #include "pas_iris.h"
 #include "pas_subsys.h"
 #include "q6ss.h"
+
+static struct pas_camera_data icp_data = {
+	.qos = CAMERA_ICP_QOS,
+	.dom_mask_offset = CAMERA_ICP_DOM_MASK_OFFSET,
+};
 
 static struct pas_iris_data iris_data;
 
@@ -81,6 +87,18 @@ static struct qcom_pas_subsys subsystems[] = {
 			.subsystem_data = &iris_data,
 		},
 		.ops = &eliza_iris_ops,
+		.reset_seq = QCOM_PAS_RESET_NONE,
+	},
+	/* Linux owns the camera clocks and powers the ICP before each call */
+	{
+		.data = {
+			.pas_id = PAS_ID_CAMERA,
+			.base.pa = CAMERA_ICP_SYS_BASE,
+			.size = CAMERA_ICP_SYS_SIZE,
+			.map_type = MEM_AREA_IO_NSEC,
+			.subsystem_data = &icp_data,
+		},
+		.ops = &pas_camera_icp_ops,
 		.reset_seq = QCOM_PAS_RESET_NONE,
 	},
 };
